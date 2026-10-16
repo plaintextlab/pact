@@ -34,6 +34,8 @@ pub struct Settings {
     pub sync_on_change: bool,
     pub show_completed: bool,
     pub ui_scale: f32,
+    /// 24-hour clock (`14:30`) instead of 12-hour (`2:30 PM`).
+    pub clock_24h: bool,
 }
 
 impl Default for Settings {
@@ -56,6 +58,7 @@ impl Default for Settings {
             sync_on_change: true,
             show_completed: false,
             ui_scale: 1.0,
+            clock_24h: true,
         }
     }
 }
@@ -72,6 +75,11 @@ impl Settings {
         std::fs::write(path, serde_json::to_string_pretty(self)?)?;
         Ok(())
     }
+}
+
+/// "14:30" or "2:30 PM".
+pub fn format_time(t: chrono::NaiveTime, clock_24h: bool) -> String {
+    t.format(if clock_24h { "%H:%M" } else { "%-I:%M %p" }).to_string()
 }
 
 /// "15 min", "2 h", "1 day" — for reminder offsets.

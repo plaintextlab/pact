@@ -2,10 +2,20 @@ package dev.pact.app.ui
 
 import dev.pact.app.core.Task
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 object Format {
+    /** Set from Settings.timeFormat (or the phone's own setting) by PactApp. */
+    @Volatile
+    var use24h: Boolean = true
+
+    private val h24 = DateTimeFormatter.ofPattern("HH:mm")
+    private val h12 = DateTimeFormatter.ofPattern("h:mm a")
+
+    fun time(t: LocalTime): String = t.format(if (use24h) h24 else h12)
+
     private val weekday = DateTimeFormatter.ofPattern("EEEE")
     private val short = DateTimeFormatter.ofPattern("EEE d MMM")
     private val long = DateTimeFormatter.ofPattern("d MMM yyyy")
@@ -25,6 +35,6 @@ object Format {
 
     fun due(t: Task): String {
         val d = t.date ?: return ""
-        return listOfNotNull(date(d), t.dueTime).joinToString(" ")
+        return listOfNotNull(date(d), t.time?.let { time(it) }).joinToString(" ")
     }
 }

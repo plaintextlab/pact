@@ -39,6 +39,12 @@ impl PactApp {
                         ui.selectable_value(&mut s.dark, false, "☀ Light");
                     });
                     ui.end_row();
+                    ui.label("Clock");
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut s.clock_24h, false, "12-hour (2:30 PM)");
+                        ui.selectable_value(&mut s.clock_24h, true, "24-hour (14:30)");
+                    });
+                    ui.end_row();
                     ui.label("Zoom");
                     ui.add(egui::Slider::new(&mut s.ui_scale, 0.75..=1.75).step_by(0.05));
                     ui.end_row();

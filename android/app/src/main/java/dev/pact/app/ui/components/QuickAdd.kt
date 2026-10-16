@@ -76,9 +76,9 @@ fun ParsedChips(p: Parsed, defaultDate: LocalDate? = null) {
         if (date != null) {
             val far = date.year != LocalDate.now().year || date.isAfter(LocalDate.now().plusDays(6))
             val label = (if (far) date.format(DateTimeFormatter.ofPattern("EEE d MMM yyyy")) else Format.date(date)) +
-                (p.time?.let { " " + it.toString().take(5) } ?: "")
+                (p.time?.let { " " + Format.time(it) } ?: "")
             PreviewChip(Icons.Filled.Event, label)
-        } else p.time?.let { PreviewChip(Icons.Filled.Schedule, it.toString().take(5)) }
+        } else p.time?.let { PreviewChip(Icons.Filled.Schedule, Format.time(it)) }
         p.recurrence?.let { PreviewChip(Icons.Filled.Repeat, Recur.describe(it)) }
         p.group?.let { PreviewChip(Icons.Filled.Tag, it) }
         p.priority?.let { PreviewChip(Icons.Filled.Flag, "P$it", priorityColor(it)) }

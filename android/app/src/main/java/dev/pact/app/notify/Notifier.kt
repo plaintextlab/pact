@@ -1,6 +1,7 @@
 package dev.pact.app.notify
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,6 +12,7 @@ import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,6 +23,8 @@ import dev.pact.app.data.formatOffset
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+// Every notify() below runs only after canPost() checked POST_NOTIFICATIONS.
+@SuppressLint("MissingPermission")
 object Notifier {
     const val CH_REMINDERS = "reminders"
     const val CH_ALARMS = "alarms"
@@ -72,7 +76,7 @@ object Notifier {
             today.plusDays(1) -> "Tomorrow"
             else -> d.format(DateTimeFormatter.ofPattern("EEE d MMM"))
         }
-        return listOfNotNull(day, t.dueTime).joinToString(" ")
+        return listOfNotNull(day, t.time?.let { dev.pact.app.ui.Format.time(it) }).joinToString(" ")
     }
 
     fun reminder(context: Context, t: Task, offset: Long) {
@@ -100,18 +104,32 @@ object Notifier {
         val full = Intent(context, AlarmActivity::class.java).putExtra(EXTRA_TASK, t.id).putExtra(AlarmActivity.EXTRA_TEXT, text)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
         val fullPi = PendingIntent.getActivity(context, id(t.id, 4), full, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val title = "⏰ ${t.title}"
+        // Our own layout instead of system action pills, which some phones truncate ("Di…", "Sno…").
+        val small = RemoteViews(context.packageName, R.layout.notification_alarm_small).apply {
+            setTextViewText(R.id.title, title)
+            setTextViewText(R.id.text, text)
+        }
+        val big = RemoteViews(context.packageName, R.layout.notification_alarm).apply {
+            setTextViewText(R.id.title, title)
+            setTextViewText(R.id.text, text)
+            setOnClickPendingIntent(R.id.btn_dismiss, action(context, ActionReceiver.DISMISS, t.id, 5))
+            setOnClickPendingIntent(R.id.btn_snooze, action(context, ActionReceiver.SNOOZE, t.id, 3))
+            setOnClickPendingIntent(R.id.btn_complete, action(context, ActionReceiver.COMPLETE, t.id, 2))
+        }
         val n = NotificationCompat.Builder(context, CH_ALARMS)
             .setSmallIcon(R.drawable.ic_stat_pact)
-            .setContentTitle("⏰ ${t.title}")
+            .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(small)
+            .setCustomBigContentView(big)
+            .setCustomHeadsUpContentView(big)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setFullScreenIntent(fullPi, true)
             .setContentIntent(fullPi)
             .setOngoing(true)
-            .addAction(0, "Dismiss", action(context, ActionReceiver.DISMISS, t.id, 5))
-            .addAction(0, "Snooze", action(context, ActionReceiver.SNOOZE, t.id, 3))
-            .addAction(0, "Complete", action(context, ActionReceiver.COMPLETE, t.id, 2))
             .build()
         n.flags = n.flags or Notification.FLAG_INSISTENT
         NotificationManagerCompat.from(context).notify(id(t.id), n)

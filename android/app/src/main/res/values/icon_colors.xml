@@ -1,0 +1,20 @@
+<resources>
+    <color name="ic_bg_gruvbox">#282828</color>
+    <color name="ic_fg_gruvbox">#fabd2f</color>
+    <color name="ic_bg_everforest">#2d353b</color>
+    <color name="ic_fg_everforest">#a7c080</color>
+    <color name="ic_bg_nord">#2e3440</color>
+    <color name="ic_fg_nord">#88c0d0</color>
+    <color name="ic_bg_catppuccin">#1e1e2e</color>
+    <color name="ic_fg_catppuccin">#cba6f7</color>
+    <color name="ic_bg_tokyonight">#1a1b26</color>
+    <color name="ic_fg_tokyonight">#7aa2f7</color>
+    <color name="ic_bg_dracula">#282a36</color>
+    <color name="ic_fg_dracula">#bd93f9</color>
+    <color name="ic_bg_solarized">#002b36</color>
+    <color name="ic_fg_solarized">#268bd2</color>
+    <color name="ic_bg_rosepine">#191724</color>
+    <color name="ic_fg_rosepine">#c4a7e7</color>
+    <color name="ic_bg_kanagawa">#1f1f28</color>
+    <color name="ic_fg_kanagawa">#7e9cd8</color>
+</resources>

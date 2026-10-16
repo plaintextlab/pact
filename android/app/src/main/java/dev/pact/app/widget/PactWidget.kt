@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
@@ -32,6 +33,7 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
@@ -106,10 +108,7 @@ class PactWidget : GlanceAppWidget() {
     private fun Content(context: Context, app: PactApp, prefs: Preferences, tasks: Collection<Task>, p: Palette) {
         val filter = prefs[WidgetKeys.FILTER] ?: "today"
         val opacity = (prefs[WidgetKeys.OPACITY] ?: 100).coerceIn(0, 100)
-        val title = prefs[WidgetKeys.TITLE]?.takeIf { it.isNotBlank() } ?: when {
-            filter.startsWith("group:") -> app.store.group(filter.removePrefix("group:"))?.name ?: "Tasks"
-            else -> filter.replaceFirstChar { it.uppercase() }
-        }
+        val title = prefs[WidgetKeys.TITLE]?.takeIf { it.isNotBlank() } ?: filterLabel(app, filter)
         val list = widgetTasks(tasks, filter, prefs[WidgetKeys.SHOW_SUBTASKS] ?: false, prefs[WidgetKeys.SHOW_DONE] ?: false)
         fun c(hex: String) = Color(hexColor(hex))
         val fg = ColorProvider(c(p.fg))
@@ -119,15 +118,24 @@ class PactWidget : GlanceAppWidget() {
             GlanceModifier.fillMaxSize().cornerRadius(24.dp).background(c(p.bg).copy(alpha = opacity / 100f)).padding(12.dp),
         ) {
             Row(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title, GlanceModifier.defaultWeight().clickable(actionStartActivity<MainActivity>()),
-                    style = TextStyle(color = ColorProvider(c(p.primary)), fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                )
-                Text("${list.count { !it.completed }}", style = TextStyle(color = muted, fontSize = 13.sp))
+                // Tapping the title switches the view: Today → Upcoming → Inbox → All → groups.
+                Row(
+                    GlanceModifier.defaultWeight().cornerRadius(14.dp).background(c(p.bg1)).padding(horizontal = 10.dp, vertical = 4.dp)
+                        .clickable(actionRunCallback<CycleFilterAction>()),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "$title ▾", maxLines = 1,
+                        style = TextStyle(color = ColorProvider(c(p.primary)), fontSize = 16.sp, fontWeight = FontWeight.Bold),
+                    )
+                }
+                Spacer(GlanceModifier.width(8.dp))
+                Text("${list.count { !it.completed }}", GlanceModifier.clickable(actionStartActivity<MainActivity>()), style = TextStyle(color = muted, fontSize = 13.sp))
                 Spacer(GlanceModifier.width(10.dp))
                 Image(
                     ImageProvider(R.drawable.ic_add), "Add task",
-                    GlanceModifier.size(32.dp).cornerRadius(16.dp).background(c(p.primary)).padding(6.dp)
+                    colorFilter = ColorFilter.tint(ColorProvider(c(p.bg))),
+                    modifier = GlanceModifier.size(32.dp).cornerRadius(16.dp).background(c(p.primary)).padding(6.dp)
                         .clickable(actionStartActivity(Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_QUICK_ADD, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))),
                 )
             }
@@ -160,6 +168,31 @@ class PactWidget : GlanceAppWidget() {
                 }
             }
         }
+    }
+}
+
+/** All views the widget can show, in tap order. */
+fun widgetFilters(app: PactApp): List<String> = listOf("today", "upcoming", "inbox", "all") + app.store.liveGroups().map { "group:${it.id}" }
+
+fun filterLabel(app: PactApp, filter: String): String = when {
+    filter == "today" -> "Today"
+    filter == "upcoming" -> "Upcoming"
+    filter == "inbox" -> "Inbox"
+    filter == "all" -> "All tasks"
+    filter.startsWith("group:") -> app.store.group(filter.removePrefix("group:"))?.name ?: "Tasks"
+    else -> "Tasks"
+}
+
+class CycleFilterAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val app = context.applicationContext as PactApp
+        val filters = widgetFilters(app)
+        updateAppWidgetState(context, glanceId) { prefs ->
+            val cur = filters.indexOf(prefs[WidgetKeys.FILTER] ?: "today")
+            prefs[WidgetKeys.FILTER] = filters[(cur + 1) % filters.size]
+            prefs.remove(WidgetKeys.TITLE)
+        }
+        PactWidget().update(context, glanceId)
     }
 }
 

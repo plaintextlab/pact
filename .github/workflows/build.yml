@@ -39,9 +39,9 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK and test
+      - name: Build debug APK, test and lint
         run: |
-          ./gradlew --no-daemon assembleDebug testDebugUnitTest
+          ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
           cp app/build/outputs/apk/debug/app-debug.apk pact-$PACT_VERSION_NAME-debug.apk
       - uses: actions/upload-artifact@v4
         with:

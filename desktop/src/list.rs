@@ -11,6 +11,21 @@ use pact_core::store::{sort_tasks, QuickAddDefaults};
 use crate::app::{today, Action, PactApp, View};
 use crate::style::{self, Colors};
 
+static CLOCK_24H: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Set from Settings::clock_24h.
+pub fn set_clock_24h(v: bool) {
+    CLOCK_24H.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn clock_24h() -> bool {
+    CLOCK_24H.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn fmt_time(t: chrono::NaiveTime) -> String {
+    pact_core::settings::format_time(t, clock_24h())
+}
+
 /// "Today 10:00", "Tomorrow", "Wed", "Mon 2 Nov", "3 Mar 2027".
 pub fn friendly_date(d: NaiveDate, today: NaiveDate) -> String {
     let diff = (d - today).num_days();
@@ -25,8 +40,8 @@ pub fn friendly_date(d: NaiveDate, today: NaiveDate) -> String {
 }
 
 pub fn friendly_due(t: &Task, today: NaiveDate) -> String {
-    match (t.date(), t.due_time.as_deref()) {
-        (Some(d), Some(tm)) => format!("{} {tm}", friendly_date(d, today)),
+    match (t.date(), t.time()) {
+        (Some(d), Some(tm)) => format!("{} {}", friendly_date(d, today), fmt_time(tm)),
         (Some(d), None) => friendly_date(d, today),
         _ => String::new(),
     }
@@ -459,11 +474,11 @@ pub fn preview_chips(ui: &mut egui::Ui, c: &Colors, p: &nlp::Parsed, default_dat
             s = format!("📅 {}", d.format("%a %-d %b %Y"));
         }
         if let Some(tm) = p.time {
-            s.push_str(&format!(" {}", tm.format("%H:%M")));
+            s.push_str(&format!(" {}", fmt_time(tm)));
         }
         style::chip(ui, s, c.fg, bg);
     } else if let Some(tm) = p.time {
-        style::chip(ui, format!("🕑 {}", tm.format("%H:%M")), c.fg, bg);
+        style::chip(ui, format!("🕑 {}", fmt_time(tm)), c.fg, bg);
     }
     if let Some(r) = &p.recurrence {
         style::chip(ui, format!("🔁 {}", recur::describe(r)), c.fg, bg);

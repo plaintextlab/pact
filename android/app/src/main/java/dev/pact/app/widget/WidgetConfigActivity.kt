@@ -65,9 +65,9 @@ class WidgetConfigActivity : ComponentActivity() {
                         Text("Widget", style = MaterialTheme.typography.headlineMedium)
                         Spacer(Modifier.height(16.dp))
                         Text("Show", style = MaterialTheme.typography.titleSmall)
+                        Text("You can also tap the widget's title to switch views.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val options = listOf("today" to "Today & overdue", "upcoming" to "Next 7 days", "inbox" to "Inbox", "all" to "All tasks") +
-                                app.store.liveGroups().map { "group:${it.id}" to it.name }
+                            val options = widgetFilters(app).map { it to filterLabel(app, it) }
                             options.forEach { (key, label) -> FilterChip(selected = filter == key, onClick = { filter = key }, label = { Text(label) }) }
                         }
                         Spacer(Modifier.height(12.dp))

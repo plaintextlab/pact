@@ -106,10 +106,22 @@ impl PactApp {
                 }
                 if let Some(tm) = t.time() {
                     let (mut h, mut m) = (tm.hour(), tm.minute());
-                    let a = ui.add(egui::DragValue::new(&mut h).range(0..=23).custom_formatter(|v, _| format!("{v:02}")));
-                    ui.label(":");
-                    let b = ui.add(egui::DragValue::new(&mut m).range(0..=59).speed(0.5).custom_formatter(|v, _| format!("{v:02}")));
-                    if a.changed() || b.changed() {
+                    let mut changed = false;
+                    if crate::list::clock_24h() {
+                        changed |= ui.add(egui::DragValue::new(&mut h).range(0..=23).custom_formatter(|v, _| format!("{v:02}"))).changed();
+                        ui.label(":");
+                        changed |= ui.add(egui::DragValue::new(&mut m).range(0..=59).speed(0.5).custom_formatter(|v, _| format!("{v:02}"))).changed();
+                    } else {
+                        let mut h12 = if h % 12 == 0 { 12 } else { h % 12 };
+                        let mut pm = h >= 12;
+                        changed |= ui.add(egui::DragValue::new(&mut h12).range(1..=12)).changed();
+                        ui.label(":");
+                        changed |= ui.add(egui::DragValue::new(&mut m).range(0..=59).speed(0.5).custom_formatter(|v, _| format!("{v:02}"))).changed();
+                        changed |= ui.selectable_value(&mut pm, false, "AM").changed();
+                        changed |= ui.selectable_value(&mut pm, true, "PM").changed();
+                        h = h12 % 12 + if pm { 12 } else { 0 };
+                    }
+                    if changed {
                         t.set_time(NaiveTime::from_hms_opt(h, m, 0));
                     }
                 }

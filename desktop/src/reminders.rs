@@ -63,8 +63,8 @@ impl Reminders {
 }
 
 fn fire_for(t: &Task, offset: i64) -> Fire {
-    let when = match (offset, t.due_time.as_deref()) {
-        (0, Some(time)) => format!("Due now ({time})"),
+    let when = match (offset, t.time()) {
+        (0, Some(time)) => format!("Due now ({})", crate::list::fmt_time(time)),
         (0, None) => "Due today".to_string(),
         (m, _) => format!("Due in {}", format_offset(m)),
     };

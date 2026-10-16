@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import dev.pact.app.LauncherNames
 import dev.pact.app.PactApp
 import dev.pact.app.core.AttachmentKind
 import dev.pact.app.core.Group
@@ -132,7 +131,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val before = settingsRepo.value
         settingsRepo.update(f)
         val after = settingsRepo.value
-        if (after.launcherName != before.launcherName) LauncherNames.apply(app, after.launcherName)
+        app.applyClock(after)
         if (after.nlp != before.nlp || after.notifications != before.notifications) app.onDataChanged(local = false)
     }
 

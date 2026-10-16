@@ -84,7 +84,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -195,7 +194,7 @@ fun TaskScreen(vm: AppViewModel, id: String) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(onClick = { pickDate = true }, label = { Text(t.date?.let { Format.date(it) } ?: "Pick date") },
                         leadingIcon = { Icon(Icons.Filled.Event, null, Modifier.size(18.dp)) })
-                    if (t.date != null) AssistChip(onClick = { pickTime = true }, label = { Text(t.dueTime ?: "Add time") },
+                    if (t.date != null) AssistChip(onClick = { pickTime = true }, label = { Text(t.time?.let { Format.time(it) } ?: "Add time") },
                         leadingIcon = { Icon(Icons.Filled.Schedule, null, Modifier.size(18.dp)) },
                         trailingIcon = if (t.dueTime != null) {
                             { IconButton(onClick = { update { it.copy(dueTime = null) } }, Modifier.size(18.dp)) { Icon(Icons.Filled.Close, "Clear time") } }
@@ -356,7 +355,7 @@ fun TaskScreen(vm: AppViewModel, id: String) {
     }
     if (pickTime) {
         val now = t.time ?: LocalTime.of(9, 0)
-        val state = rememberTimePickerState(now.hour, now.minute, is24Hour = true)
+        val state = rememberTimePickerState(now.hour, now.minute, is24Hour = Format.use24h)
         AlertDialog(
             onDismissRequest = { pickTime = false },
             confirmButton = {
@@ -429,7 +428,8 @@ private fun AttachmentCard(vm: AppViewModel, t: Task, a: Attachment) {
             when {
                 a.kind == AttachmentKind.TEXT -> Text(a.text.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                 a.kind == AttachmentKind.IMAGE && file != null -> {
-                    val bmp by produceState<ImageBitmap?>(null, file) { value = withContext(Dispatchers.IO) { thumbnail(file) } }
+                    var bmp by remember(file) { mutableStateOf<ImageBitmap?>(null) }
+                    LaunchedEffect(file) { bmp = withContext(Dispatchers.IO) { thumbnail(file) } }
                     bmp?.let { Image(it, a.name, Modifier.fillMaxWidth().height(180.dp).clip(MaterialTheme.shapes.small), contentScale = ContentScale.Crop) }
                 }
             }

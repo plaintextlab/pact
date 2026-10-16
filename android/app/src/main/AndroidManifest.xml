@@ -27,38 +27,434 @@
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- One launcher entry per selectable name; LauncherNames enables exactly one. -->
-        <activity-alias android:name=".LauncherPact" android:targetActivity=".MainActivity" android:label="@string/launcher_pact" android:enabled="true" android:exported="true">
+        <!-- Generated: one launcher entry per (name, theme); LauncherNames enables exactly one. -->
+        <activity-alias android:name=".L_Pact_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="true" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherToDo" android:targetActivity=".MainActivity" android:label="@string/launcher_todo" android:enabled="false" android:exported="true">
+        <activity-alias android:name=".L_Pact_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherTasks" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks" android:enabled="false" android:exported="true">
+        <activity-alias android:name=".L_Pact_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherTodolist" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist" android:enabled="false" android:exported="true">
+        <activity-alias android:name=".L_Pact_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherChecklist" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist" android:enabled="false" android:exported="true">
+        <activity-alias android:name=".L_Pact_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-        <activity-alias android:name=".LauncherReminders" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders" android:enabled="false" android:exported="true">
+        <activity-alias android:name=".L_Pact_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Pact_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Pact_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Pact_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_pact"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_ToDo_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_todo"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Tasks_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_tasks"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Todolist_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_todolist"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Checklist_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_checklist"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_gruvbox" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_gruvbox" android:roundIcon="@mipmap/ic_launcher_gruvbox"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_everforest" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_everforest" android:roundIcon="@mipmap/ic_launcher_everforest"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_nord" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_nord" android:roundIcon="@mipmap/ic_launcher_nord"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_catppuccin" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_catppuccin" android:roundIcon="@mipmap/ic_launcher_catppuccin"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_tokyonight" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_tokyonight" android:roundIcon="@mipmap/ic_launcher_tokyonight"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_dracula" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_dracula" android:roundIcon="@mipmap/ic_launcher_dracula"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_solarized" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_solarized" android:roundIcon="@mipmap/ic_launcher_solarized"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_rosepine" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_rosepine" android:roundIcon="@mipmap/ic_launcher_rosepine"
+            android:enabled="false" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".L_Reminders_kanagawa" android:targetActivity=".MainActivity" android:label="@string/launcher_reminders"
+            android:icon="@mipmap/ic_launcher_kanagawa" android:roundIcon="@mipmap/ic_launcher_kanagawa"
+            android:enabled="false" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

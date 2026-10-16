@@ -28,3 +28,6 @@ rfd = "0.15"
 rodio = { version = "0.20", default-features = false }
 cpal = { version = "0.15", optional = true }
 hound = { version = "3", optional = true }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

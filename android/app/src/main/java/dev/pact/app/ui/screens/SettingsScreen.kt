@@ -114,6 +114,9 @@ fun SettingsScreen(vm: AppViewModel) {
                 }
                 Spacer(Modifier.height(12.dp))
                 Segmented("Mode", listOf("system" to "System", "light" to "Light", "dark" to "Dark"), s.themeMode) { m -> vm.updateSettings { it.copy(themeMode = m) } }
+                Segmented("Time format", listOf("system" to "System", "12h" to "12-hour", "24h" to "24-hour"), s.timeFormat) { f -> vm.updateSettings { it.copy(timeFormat = f) } }
+                Text("The launcher icon uses the selected color scheme. Some launchers take a moment to refresh it.",
+                    style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.padding(top = 6.dp))
 
                 Header("App name")
                 var name by remember { mutableStateOf(s.appName) }

@@ -117,6 +117,7 @@ impl PactApp {
         store::migrate_into_folder(&repo_root, &settings.git_folder)?;
         let store = Store::open(store::data_dir(&repo_root, &settings.git_folder))?;
         let colors = Colors::from_settings(&settings);
+        crate::list::set_clock_24h(settings.clock_24h);
         style::apply(&cc.egui_ctx, &colors, settings.ui_scale);
         let view = match std::env::var("PACT_VIEW").as_deref() {
             Ok("calendar") => View::Calendar,
@@ -183,6 +184,7 @@ impl PactApp {
 
     pub fn save_settings(&mut self) {
         self.colors = Colors::from_settings(&self.settings);
+        crate::list::set_clock_24h(self.settings.clock_24h);
         self.style_dirty = true;
         if let Err(e) = self.settings.save(&self.settings_path) {
             self.show_toast(format!("Could not save settings: {e}"));

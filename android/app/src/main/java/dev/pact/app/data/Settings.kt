@@ -32,6 +32,8 @@ data class Settings(
     @SerialName("show_completed") val showCompleted: Boolean = false,
     /** Launcher entry (activity-alias) in use, see LauncherNames. */
     @SerialName("launcher_name") val launcherName: String = "Pact",
+    /** "system", "12h" or "24h". */
+    @SerialName("time_format") val timeFormat: String = "system",
 )
 
 class SettingsRepo(private val file: File) {

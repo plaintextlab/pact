@@ -1,13 +1,16 @@
 package dev.pact.app
 
 import android.app.Application
+import android.text.format.DateFormat
 import androidx.glance.appwidget.updateAll
+import dev.pact.app.data.Settings
 import dev.pact.app.data.SettingsRepo
 import dev.pact.app.data.Store
 import dev.pact.app.notify.Notifier
 import dev.pact.app.notify.ReminderScheduler
 import dev.pact.app.sync.GitSync
 import dev.pact.app.sync.SyncWorker
+import dev.pact.app.ui.Format
 import dev.pact.app.widget.PactWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,12 +44,22 @@ class PactApp : Application() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsRepo(File(filesDir, "settings.json"))
+        applyClock()
         val folder = settings.value.gitFolder
         runCatching { Store.migrateIntoFolder(repoRoot, folder) }
         store = Store(Store.dataDir(repoRoot, folder))
         Notifier.createChannels(this)
         scope.launch(Dispatchers.IO) { store.purgeTombstones() }
         scope.launch { store.changes.debounce(400).collect { onDataChanged(local = true) } }
+        // Clock format, launcher icon/name and widgets follow the settings.
+        scope.launch {
+            settings.state.distinctUntilChangedBy { Triple(it.timeFormat, it.theme, it.themeMode) to it.launcherName }.collect { s ->
+                applyClock(s)
+                runCatching { LauncherNames.apply(this@PactApp, s.launcherName, s.theme) }
+                runCatching { PactWidget().updateAll(this@PactApp) }
+                Notifier.syncPinned(this@PactApp, store.liveTasks())
+            }
+        }
         scope.launch {
             settings.state.distinctUntilChangedBy { it.autoSyncMinutes to it.gitRemote }.collect {
                 SyncWorker.schedulePeriodic(this@PactApp, if (it.gitRemote.isBlank()) 0 else it.autoSyncMinutes)
@@ -55,6 +68,15 @@ class PactApp : Application() {
         ReminderScheduler.schedule(this)
         Notifier.syncPinned(this, store.liveTasks())
         if (settings.value.gitRemote.isNotBlank()) SyncWorker.soon(this, 2)
+    }
+
+    /** Sets the app-wide 12/24-hour clock from the setting (or the phone's own choice). */
+    fun applyClock(s: Settings = settings.value) {
+        Format.use24h = when (s.timeFormat) {
+            "12h" -> false
+            "24h" -> true
+            else -> DateFormat.is24HourFormat(this)
+        }
     }
 
     /** Re-arms reminders, refreshes pins and widgets; queues a sync for local edits. */
