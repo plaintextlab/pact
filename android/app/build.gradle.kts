@@ -13,12 +13,28 @@ android {
         applicationId = "dev.pact.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes these; versionCode must grow for Android to accept an update.
+        versionCode = System.getenv("PACT_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("PACT_VERSION_NAME")?.removePrefix("v") ?: "0.1.0-dev"
+    }
+
+    // Release signing comes from the environment (GitHub secrets in CI).
+    // Without it, release builds are left unsigned.
+    val keystore = System.getenv("PACT_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = keystore
+                storePassword = System.getenv("PACT_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("PACT_KEY_ALIAS")
+                keyPassword = System.getenv("PACT_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
