@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Pact</string>
+    <string name="launcher_pact">Pact</string>
+    <string name="launcher_todo">ToDo</string>
+    <string name="launcher_tasks">Tasks</string>
+    <string name="launcher_todolist">To-do list</string>
+    <string name="launcher_checklist">Checklist</string>
+    <string name="launcher_reminders">Reminders</string>
+    <string name="widget_name">Pact tasks</string>
+    <string name="widget_description">Your tasks for today, a group or the inbox</string>
+</resources>

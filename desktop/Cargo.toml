@@ -1,0 +1,30 @@
+[package]
+name = "pact-desktop"
+description = "Pact todo app for Linux, Windows and macOS"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "pact"
+path = "src/main.rs"
+
+[features]
+default = ["voice"]
+# Microphone recording for voice attachments (needs ALSA headers on Linux: libasound2-dev).
+voice = ["dep:cpal", "dep:hound"]
+
+[dependencies]
+pact-core = { path = "../core" }
+anyhow = "1"
+chrono = "0.4"
+directories = "6"
+eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "persistence"] }
+egui_extras = { version = "0.31", features = ["image", "file", "datepicker", "serde"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+notify-rust = "4"
+open = "5"
+rfd = "0.15"
+rodio = { version = "0.20", default-features = false }
+cpal = { version = "0.15", optional = true }
+hound = { version = "3", optional = true }

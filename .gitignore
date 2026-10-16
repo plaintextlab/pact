@@ -1,0 +1,11 @@
+/target
+*.tmp
+.idea/
+.gradle/
+local.properties
+build/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild
+.cxx
