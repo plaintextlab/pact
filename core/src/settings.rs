@@ -22,8 +22,11 @@ pub struct Settings {
     pub alarm_ring_seconds: u32,
     pub snooze_minutes: u32,
     pub notifications: bool,
-    /// Defaults to the platform data dir.
+    /// The git repository used for sync; defaults to the platform data dir.
+    /// It may be shared with other apps.
     pub data_dir: Option<PathBuf>,
+    /// Pact's folder inside that repository ("" = repository root).
+    pub git_folder: String,
     pub git_remote: String,
     pub git_branch: String,
     /// 0 disables periodic sync.
@@ -46,6 +49,7 @@ impl Default for Settings {
             snooze_minutes: 10,
             notifications: true,
             data_dir: None,
+            git_folder: "pact".into(),
             git_remote: String::new(),
             git_branch: "main".into(),
             auto_sync_minutes: 15,

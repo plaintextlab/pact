@@ -173,7 +173,7 @@ fun SettingsScreen(vm: AppViewModel) {
 
                 Header("Sync (git)")
                 Text(
-                    "Your tasks are a git repository. Point it at an HTTPS remote (GitHub, GitLab, Gitea…) and use a personal access token as the password. Use the same remote on your computer to sync.",
+                    "Your tasks live in a folder of a git repository, which can be shared with other apps. Point it at an HTTPS remote (GitHub, GitLab, Gitea…) and use a personal access token as the password. Use the same remote and folder on your computer.",
                     style = MaterialTheme.typography.bodySmall, color = muted,
                 )
                 Spacer(Modifier.height(8.dp))
@@ -187,12 +187,20 @@ fun SettingsScreen(vm: AppViewModel) {
                 OutlinedTextField(token, { token = it }, Modifier.fillMaxWidth(), label = { Text("Access token") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
                 OutlinedTextField(branch, { branch = it }, Modifier.fillMaxWidth(), label = { Text("Branch") }, singleLine = true)
+                var folder by remember { mutableStateOf(s.gitFolder) }
+                OutlinedTextField(folder, { folder = it }, Modifier.fillMaxWidth(), label = { Text("Pact folder in repository") }, singleLine = true,
+                    placeholder = { Text("pact (empty = repository root)") },
+                    supportingText = { Text("Lets one repo (e.g. appsync) hold data for several apps. Pact only commits this folder.") })
                 HourSlider("Sync every (minutes, 0 = off)", s.autoSyncMinutes, 0..240, "") { m -> vm.updateSettings { it.copy(autoSyncMinutes = m) } }
                 SwitchLine("Sync after edits", s.syncOnChange) { v -> vm.updateSettings { it.copy(syncOnChange = v) } }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = {
-                        vm.updateSettings { it.copy(gitRemote = remote.trim(), gitUsername = user.trim(), gitToken = token.trim(), gitBranch = branch.trim().ifEmpty { "main" }) }
-                        vm.syncNow()
+                        val newFolder = folder.trim().trim('/')
+                        val folderChanged = newFolder != s.gitFolder
+                        vm.updateSettings {
+                            it.copy(gitRemote = remote.trim(), gitUsername = user.trim(), gitToken = token.trim(), gitBranch = branch.trim().ifEmpty { "main" }, gitFolder = newFolder)
+                        }
+                        if (folderChanged) vm.say("Restart Pact to use the new folder") else vm.syncNow()
                     }, enabled = !sync.busy) { Text("Save & sync now") }
                     Spacer(Modifier.width(12.dp))
                     Text(sync.status, color = muted)

@@ -7,7 +7,7 @@ use chrono::{Datelike, Duration as CDuration, Local, NaiveDate, NaiveTime};
 use eframe::egui::{self, Color32, CornerRadius, Margin, RichText, Vec2};
 use pact_core::model::{AttachmentKind, Group, Task};
 use pact_core::settings::Settings;
-use pact_core::store::{QuickAddDefaults, Store};
+use pact_core::store::{self, QuickAddDefaults, Store};
 use pact_core::sync::SyncConfig;
 
 use crate::reminders::{notify, AlarmSound, Fire, Reminders};
@@ -77,6 +77,9 @@ pub struct PactApp {
     pub settings: Settings,
     settings_path: PathBuf,
     default_data_dir: PathBuf,
+    /// The (possibly shared) git repository; the store lives in a folder inside it.
+    repo_root: PathBuf,
+    pub folder_text: String,
     pub colors: Colors,
     pub view: View,
     pub selected: Option<String>,
@@ -110,8 +113,9 @@ pub fn today() -> NaiveDate {
 
 impl PactApp {
     pub fn new(cc: &eframe::CreationContext<'_>, settings: Settings, settings_path: PathBuf, default_data_dir: PathBuf) -> Result<Self> {
-        let data_dir = std::env::var_os("PACT_DATA_DIR").map(PathBuf::from).or_else(|| settings.data_dir.clone()).unwrap_or_else(|| default_data_dir.clone());
-        let store = Store::open(&data_dir)?;
+        let repo_root = std::env::var_os("PACT_DATA_DIR").map(PathBuf::from).or_else(|| settings.data_dir.clone()).unwrap_or_else(|| default_data_dir.clone());
+        store::migrate_into_folder(&repo_root, &settings.git_folder)?;
+        let store = Store::open(store::data_dir(&repo_root, &settings.git_folder))?;
         let colors = Colors::from_settings(&settings);
         style::apply(&cc.egui_ctx, &colors, settings.ui_scale);
         let view = match std::env::var("PACT_VIEW").as_deref() {
@@ -124,9 +128,11 @@ impl PactApp {
             store,
             presets_text: join_nums(&settings.reminder_presets),
             default_reminders_text: join_nums(&settings.default_reminders),
+            folder_text: settings.git_folder.clone(),
             settings,
             settings_path,
             default_data_dir,
+            repo_root,
             colors,
             view,
             selected: None,
@@ -167,8 +173,12 @@ impl PactApp {
         Ok(app)
     }
 
-    pub fn data_dir(&self) -> PathBuf {
-        self.store.root.clone()
+    pub fn repo_root(&self) -> PathBuf {
+        self.repo_root.clone()
+    }
+
+    fn sync_config(&self) -> SyncConfig {
+        SyncConfig { remote: self.settings.git_remote.clone(), branch: self.settings.git_branch.clone(), folder: self.settings.git_folder.clone() }
     }
 
     pub fn save_settings(&mut self) {
@@ -177,11 +187,14 @@ impl PactApp {
         if let Err(e) = self.settings.save(&self.settings_path) {
             self.show_toast(format!("Could not save settings: {e}"));
         }
-        let wanted = self.settings.data_dir.clone().unwrap_or_else(|| self.default_data_dir.clone());
+        let repo = self.settings.data_dir.clone().unwrap_or_else(|| self.default_data_dir.clone());
+        let wanted = store::data_dir(&repo, &self.settings.git_folder);
         if wanted != self.store.root {
-            match Store::open(&wanted) {
+            let opened = store::migrate_into_folder(&repo, &self.settings.git_folder).and_then(|_| Store::open(&wanted));
+            match opened {
                 Ok(s) => {
                     self.store = s;
+                    self.repo_root = repo;
                     self.selected = None;
                 }
                 Err(e) => self.show_toast(format!("Could not open data folder: {e}")),
@@ -198,8 +211,7 @@ impl PactApp {
     }
 
     pub fn request_sync(&mut self) {
-        let cfg = SyncConfig { remote: self.settings.git_remote.clone(), branch: self.settings.git_branch.clone() };
-        self.sync.request(self.store.root.clone(), cfg);
+        self.sync.request(self.repo_root.clone(), self.sync_config());
         self.dirty_since = None;
         self.last_auto_sync = Instant::now();
     }
@@ -669,8 +681,7 @@ impl eframe::App for PactApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         if self.dirty_since.is_some() && !self.settings.git_remote.trim().is_empty() {
             // Best effort final sync so edits reach other devices.
-            let cfg = SyncConfig { remote: self.settings.git_remote.clone(), branch: self.settings.git_branch.clone() };
-            let _ = pact_core::sync::sync(&self.store.root, &cfg, "desktop");
+            let _ = pact_core::sync::sync(&self.repo_root, &self.sync_config(), "desktop");
         }
     }
 }

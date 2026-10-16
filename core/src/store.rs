@@ -272,6 +272,28 @@ impl Store {
     }
 }
 
+/// Pact's data folder inside a (possibly shared) sync repository.
+pub fn data_dir(repo: &Path, folder: &str) -> PathBuf {
+    let folder = folder.trim().trim_matches('/');
+    if folder.is_empty() { repo.to_path_buf() } else { repo.join(folder) }
+}
+
+/// Moves data kept at the repository root (older layout) into `folder`.
+pub fn migrate_into_folder(repo: &Path, folder: &str) -> Result<()> {
+    let dst = data_dir(repo, folder);
+    if dst == repo || !repo.join("tasks").is_dir() || dst.join("tasks").exists() {
+        return Ok(());
+    }
+    fs::create_dir_all(&dst)?;
+    for name in ["tasks", "groups", "attachments", ".gitattributes"] {
+        let src = repo.join(name);
+        if src.exists() {
+            fs::rename(&src, dst.join(name)).with_context(|| format!("moving {}", src.display()))?;
+        }
+    }
+    Ok(())
+}
+
 #[derive(Default, Clone)]
 pub struct QuickAddDefaults {
     pub parent_id: Option<String>,
@@ -325,5 +347,18 @@ mod tests {
         s.delete_task(&t.id).unwrap();
         assert!(s.task(&sub.id).is_none());
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn migrates_root_layout_into_folder() {
+        let repo = tmp();
+        let mut s = Store::open(&repo).unwrap();
+        let t = Task::new("old");
+        s.save_task(t.clone()).unwrap();
+        migrate_into_folder(&repo, "pact").unwrap();
+        assert!(!repo.join("tasks").exists());
+        let s2 = Store::open(data_dir(&repo, "pact")).unwrap();
+        assert!(s2.task(&t.id).is_some());
+        fs::remove_dir_all(repo).unwrap();
     }
 }

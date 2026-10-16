@@ -102,18 +102,27 @@ impl PactApp {
                 });
 
                 style::section_title(ui, &c, "SYNC (GIT)");
-                ui.label(RichText::new("Your tasks live in a git repository. Add a remote (GitHub, GitLab, Gitea, any SSH/HTTPS git server) to sync with your phone and other computers. Authentication uses your normal git setup: SSH keys or a credential helper.").size(12.5).color(c.muted));
+                ui.label(RichText::new("Your tasks live in a folder of a git repository, which can be shared with other apps (e.g. an \"appsync\" repo). Pact only commits its own folder. Add a remote (GitHub, GitLab, Gitea, any SSH/HTTPS git server) to sync with your phone and other computers. Authentication uses your normal git setup: SSH keys or a credential helper.").size(12.5).color(c.muted));
                 egui::Grid::new("sync").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
-                    ui.label("Data folder");
+                    ui.label("Repository folder");
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(self.data_dir().display().to_string()).monospace().size(12.0));
+                        ui.label(RichText::new(self.repo_root().display().to_string()).monospace().size(12.0));
                         if ui.small_button("Change…").clicked() {
                             if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                                 s.data_dir = Some(dir);
                             }
                         }
                         if ui.small_button("Open").clicked() {
-                            actions.push(Action::Open(self.data_dir()));
+                            actions.push(Action::Open(self.repo_root()));
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Pact folder in repo");
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut self.folder_text).hint_text("pact (empty = repo root)").desired_width(160.0));
+                        let clean = self.folder_text.trim().trim_matches('/').to_string();
+                        if clean != s.git_folder && ui.button("Apply").clicked() {
+                            s.git_folder = clean;
                         }
                     });
                     ui.end_row();

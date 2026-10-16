@@ -44,8 +44,9 @@ The full list of examples is in [spec/nlp_cases.json](spec/nlp_cases.json). The 
 
 ## Sync
 
-Your data folder is a plain git repository with one JSON file per task (see [spec/data-format.md](spec/data-format.md)).
-Create an empty private repository on GitHub, GitLab or Gitea, then put its URL in Settings on each device.
+Pact keeps one JSON file per task in a folder (default `pact/`) of a git repository (see [spec/data-format.md](spec/data-format.md)).
+The repository can be shared with other apps, such as a single `appsync` repo holding sync data for several apps. Pact only commits its own folder.
+Put the repository URL (and the same folder name) in Settings on each device.
 
 - **Desktop** uses your installed `git`, so SSH keys and credential helpers just work.
 - **Android** uses an HTTPS URL plus a username and a personal access token.

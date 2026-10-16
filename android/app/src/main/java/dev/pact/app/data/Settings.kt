@@ -22,6 +22,8 @@ data class Settings(
     val notifications: Boolean = true,
     @SerialName("git_remote") val gitRemote: String = "",
     @SerialName("git_branch") val gitBranch: String = "main",
+    /** Pact's folder inside the (possibly shared) sync repository; "" = repository root. */
+    @SerialName("git_folder") val gitFolder: String = "pact",
     @SerialName("git_username") val gitUsername: String = "",
     /** Personal access token for HTTPS remotes. Stored in app-private storage. */
     @SerialName("git_token") val gitToken: String = "",

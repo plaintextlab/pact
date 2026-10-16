@@ -1,15 +1,23 @@
 # Pact data format (v1)
 
 Both the Android app and the desktop app read and write the same folder layout.
-That folder is a plain git repository, which is how sync works.
+It lives in one folder (default `pact/`, configurable, empty = root) of a plain git
+repository, which is how sync works. The repository may be shared with other apps
+(e.g. one "appsync" repo): Pact only stages and commits its own folder, and a merge
+conflict outside that folder aborts the sync instead of touching other apps' data.
 
 ```
-<data dir>/
-  .gitattributes
-  tasks/<task-id>.json
-  groups/<group-id>.json
-  attachments/<task-id>/<attachment-id>-<file name>
+<repository>/
+  pact/
+    .gitattributes
+    tasks/<task-id>.json
+    groups/<group-id>.json
+    attachments/<task-id>/<attachment-id>-<file name>
+  <other apps' folders>/
 ```
+
+Data from the older layout (directly at the repository root) is moved into the
+folder automatically on start.
 
 One file per object keeps git merges conflict-free in almost every case. When the
 same object was edited on two devices, the copy with the larger `updated` wins.

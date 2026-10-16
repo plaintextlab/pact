@@ -31,6 +31,22 @@ data class QuickAddDefaults(
 
 /** File-per-object storage inside the git data dir; mirrors core/src/store.rs. */
 class Store(val root: File) {
+    companion object {
+        /** Pact's data folder inside a (possibly shared) sync repository. */
+        fun dataDir(repo: File, folder: String): File = folder.trim().trim('/').let { if (it.isEmpty()) repo else File(repo, it) }
+
+        /** Moves data kept at the repository root (older layout) into [folder]. */
+        fun migrateIntoFolder(repo: File, folder: String) {
+            val dst = dataDir(repo, folder)
+            if (dst == repo || !File(repo, "tasks").isDirectory || File(dst, "tasks").exists()) return
+            dst.mkdirs()
+            for (name in listOf("tasks", "groups", "attachments", ".gitattributes")) {
+                val src = File(repo, name)
+                if (src.exists() && !src.renameTo(File(dst, name))) error("could not move ${src.path}")
+            }
+        }
+    }
+
     private val _tasks = MutableStateFlow<Map<String, Task>>(emptyMap())
     private val _groups = MutableStateFlow<Map<String, Group>>(emptyMap())
     val tasks: StateFlow<Map<String, Task>> = _tasks

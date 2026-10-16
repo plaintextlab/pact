@@ -1,6 +1,9 @@
 //! Git sync through the system `git` binary, so the user's existing SSH keys and
 //! credential helpers just work. Conflicting JSON objects are resolved per file:
 //! the side with the larger `updated` wins.
+//!
+//! The repository may be shared with other apps: Pact only stages and commits its
+//! own folder (`SyncConfig::folder`) and never resolves conflicts outside it.
 
 use std::path::Path;
 use std::process::{Command, Output};
@@ -12,6 +15,20 @@ use serde_json::Value;
 pub struct SyncConfig {
     pub remote: String,
     pub branch: String,
+    /// Pact's folder inside the repository ("" = the whole repository).
+    pub folder: String,
+}
+
+impl SyncConfig {
+    fn pathspec(&self) -> String {
+        let f = self.folder.trim().trim_matches('/');
+        if f.is_empty() { ".".into() } else { f.to_string() }
+    }
+
+    fn owns(&self, path: &str) -> bool {
+        let spec = self.pathspec();
+        spec == "." || path == spec || path.starts_with(&format!("{spec}/"))
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -101,20 +118,28 @@ pub fn ensure_repo(root: &Path, cfg: &SyncConfig) -> Result<()> {
     Ok(())
 }
 
-fn commit_all(root: &Path, msg: &str) -> Result<bool> {
-    ok(root, &["add", "-A"])?;
-    if ok(root, &["status", "--porcelain"])?.trim().is_empty() {
+/// Commits Pact's folder only, leaving other apps' changes alone.
+fn commit_folder(root: &Path, cfg: &SyncConfig, msg: &str) -> Result<bool> {
+    let spec = cfg.pathspec();
+    ok(root, &["add", "-A", "--", &spec])?;
+    if ok(root, &["status", "--porcelain", "--", &spec])?.trim().is_empty() {
         return Ok(false);
     }
-    ok(root, &["commit", "-q", "-m", msg])?;
+    ok(root, &["commit", "-q", "-m", msg, "--", &spec])?;
     Ok(true)
 }
 
-/// Resolves every unmerged path by keeping the newer object.
-fn resolve_conflicts(root: &Path) -> Result<usize> {
+/// Resolves every unmerged path in Pact's folder by keeping the newer object.
+/// Conflicts elsewhere belong to other apps, so the merge is aborted instead.
+fn resolve_conflicts(root: &Path, cfg: &SyncConfig) -> Result<usize> {
     let files = ok(root, &["diff", "--name-only", "--diff-filter=U"])?;
+    let paths: Vec<&str> = files.lines().map(str::trim).filter(|p| !p.is_empty()).collect();
+    if let Some(other) = paths.iter().find(|p| !cfg.owns(p)) {
+        ok(root, &["merge", "--abort"]).ok();
+        bail!("merge conflict outside Pact's folder ({other}); resolve it with git, then sync again");
+    }
     let mut n = 0;
-    for path in files.lines().map(str::trim).filter(|p| !p.is_empty()) {
+    for path in paths {
         let ours = show_blob(root, &format!(":2:{path}"));
         let theirs = show_blob(root, &format!(":3:{path}"));
         let winner = match (ours, theirs) {
@@ -144,7 +169,7 @@ pub fn sync(root: &Path, cfg: &SyncConfig, device: &str) -> Result<SyncReport> {
     ensure_repo(root, cfg)?;
     let mut rep = SyncReport::default();
     let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M");
-    rep.committed = commit_all(root, &format!("pact: {device} {stamp}"))?;
+    rep.committed = commit_folder(root, cfg, &format!("pact: {device} {stamp}"))?;
     if cfg.remote.trim().is_empty() {
         return Ok(rep);
     }
@@ -164,7 +189,12 @@ pub fn sync(root: &Path, cfg: &SyncConfig, device: &str) -> Result<SyncReport> {
         if behind.trim() != "0" {
             let merge = run(root, &["merge", "--no-edit", "-q", "--allow-unrelated-histories", &remote_ref])?;
             if !merge.status.success() {
-                rep.conflicts_resolved = resolve_conflicts(root)?;
+                let unmerged = ok(root, &["diff", "--name-only", "--diff-filter=U"])?;
+                if unmerged.trim().is_empty() {
+                    // Refused outright, e.g. uncommitted changes of another app in the way.
+                    bail!("git merge failed: {}", String::from_utf8_lossy(&merge.stderr).trim());
+                }
+                rep.conflicts_resolved = resolve_conflicts(root, cfg)?;
                 ok(root, &["commit", "-q", "--no-edit"])?;
             }
             rep.pulled = true;
@@ -182,7 +212,7 @@ pub fn sync(root: &Path, cfg: &SyncConfig, device: &str) -> Result<SyncReport> {
 mod tests {
     use super::*;
     use crate::model::Task;
-    use crate::store::Store;
+    use crate::store::{data_dir, Store};
 
     fn tmp(name: &str) -> std::path::PathBuf {
         let p = std::env::temp_dir().join(format!("pact-sync-{name}-{}", uuid::Uuid::new_v4()));
@@ -191,23 +221,38 @@ mod tests {
     }
 
     #[test]
-    fn two_devices_converge_and_newest_edit_wins() {
+    fn two_devices_converge_in_shared_repo() {
         if Command::new("git").arg("--version").output().is_err() {
             return;
         }
         let remote = tmp("remote");
         ok(&remote, &["init", "-q", "--bare"]).unwrap();
-        let cfg = SyncConfig { remote: remote.to_string_lossy().replace('\\', "/"), branch: "main".into() };
+        let cfg = SyncConfig { remote: remote.to_string_lossy().replace('\\', "/"), branch: "main".into(), folder: "pact".into() };
 
-        let a_dir = tmp("a");
-        let mut a = Store::open(&a_dir).unwrap();
+        // Another app already keeps its data in the shared repo.
+        let other = tmp("other");
+        ensure_repo(&other, &cfg).unwrap();
+        std::fs::create_dir_all(other.join("notes")).unwrap();
+        std::fs::write(other.join("notes/a.txt"), "other app").unwrap();
+        ok(&other, &["add", "-A"]).unwrap();
+        ok(&other, &["commit", "-q", "-m", "other app"]).unwrap();
+        ok(&other, &["push", "-q", "origin", "HEAD:refs/heads/main"]).unwrap();
+
+        let a_repo = tmp("a");
+        let mut a = Store::open(data_dir(&a_repo, "pact")).unwrap();
         let t = Task::new("shared");
         a.save_task(t.clone()).unwrap();
-        sync(&a_dir, &cfg, "a").unwrap();
+        // An uncommitted file of some other app must not be committed by Pact.
+        std::fs::write(a_repo.join("scratch.txt"), "not pact").unwrap();
+        sync(&a_repo, &cfg, "a").unwrap();
+        assert!(a_repo.join("notes/a.txt").exists(), "other app's data is pulled");
+        let tracked = ok(&a_repo, &["ls-files"]).unwrap();
+        assert!(!tracked.contains("scratch.txt"));
+        assert!(tracked.lines().all(|l| l.starts_with("pact/") || l.starts_with("notes/")));
 
-        let b_dir = tmp("b");
-        let mut b = Store::open(&b_dir).unwrap();
-        sync(&b_dir, &cfg, "b").unwrap();
+        let b_repo = tmp("b");
+        let mut b = Store::open(data_dir(&b_repo, "pact")).unwrap();
+        sync(&b_repo, &cfg, "b").unwrap();
         b.reload();
         assert!(b.task(&t.id).is_some());
 
@@ -220,15 +265,15 @@ mod tests {
         tb.title = "from b".into();
         b.save_task(tb).unwrap();
 
-        sync(&a_dir, &cfg, "a").unwrap();
-        let rep = sync(&b_dir, &cfg, "b").unwrap();
+        sync(&a_repo, &cfg, "a").unwrap();
+        let rep = sync(&b_repo, &cfg, "b").unwrap();
         assert_eq!(rep.conflicts_resolved, 1);
-        sync(&a_dir, &cfg, "a").unwrap();
+        sync(&a_repo, &cfg, "a").unwrap();
         a.reload();
         b.reload();
         assert_eq!(a.task(&t.id).unwrap().title, "from b");
         assert_eq!(b.task(&t.id).unwrap().title, "from b");
-        for d in [remote, a_dir, b_dir] {
+        for d in [remote, other, a_repo, b_repo] {
             let _ = std::fs::remove_dir_all(d);
         }
     }

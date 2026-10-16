@@ -29,6 +29,9 @@ class PactApp : Application() {
         private set
     lateinit var settings: SettingsRepo
         private set
+
+    /** The git repository used for sync; may be shared with other apps. Pact's data lives in a folder of it. */
+    val repoRoot: File get() = File(filesDir, "data")
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _sync = MutableStateFlow(SyncState())
     val sync: StateFlow<SyncState> = _sync
@@ -38,7 +41,9 @@ class PactApp : Application() {
     override fun onCreate() {
         super.onCreate()
         settings = SettingsRepo(File(filesDir, "settings.json"))
-        store = Store(File(filesDir, "data"))
+        val folder = settings.value.gitFolder
+        runCatching { Store.migrateIntoFolder(repoRoot, folder) }
+        store = Store(Store.dataDir(repoRoot, folder))
         Notifier.createChannels(this)
         scope.launch(Dispatchers.IO) { store.purgeTombstones() }
         scope.launch { store.changes.debounce(400).collect { onDataChanged(local = true) } }
@@ -65,7 +70,7 @@ class PactApp : Application() {
     suspend fun runSync(): Boolean = syncLock.withLock {
         _sync.value = _sync.value.copy(busy = true, status = "syncing…")
         try {
-            val msg = GitSync.sync(store.root, settings.value)
+            val msg = GitSync.sync(repoRoot, settings.value)
             store.reload()
             onDataChanged(local = false)
             _sync.value = SyncState(busy = false, status = msg, error = null, lastOk = System.currentTimeMillis())

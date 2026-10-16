@@ -21,11 +21,16 @@ import java.time.format.DateTimeFormatter
 /**
  * Commit, merge the remote branch, push — same algorithm as core/src/sync.rs.
  * Conflicting objects are resolved per file: the side with the larger `updated` wins.
+ * The repository may be shared with other apps: only Pact's folder is committed,
+ * and conflicts outside it abort the merge.
  * Android supports HTTPS remotes with a username + personal access token.
  */
 object GitSync {
     fun sync(root: File, s: Settings, device: String = android.os.Build.MODEL ?: "android"): String {
         val branch = s.gitBranch.ifBlank { "main" }
+        val folder = s.gitFolder.trim().trim('/')
+        val spec = folder.ifEmpty { "." }
+        fun owns(path: String) = folder.isEmpty() || path == folder || path.startsWith("$folder/")
         val git = if (File(root, ".git").exists()) Git.open(root) else Git.init().setDirectory(root).setInitialBranch(branch).call()
         git.use {
             val repo = git.repository
@@ -42,9 +47,11 @@ object GitSync {
             cfg.save()
 
             val parts = mutableListOf<String>()
-            git.add().addFilepattern(".").call()
-            git.add().addFilepattern(".").setUpdate(true).call()
-            if (!git.status().call().isClean) {
+            git.add().addFilepattern(spec).call()
+            git.add().addFilepattern(spec).setUpdate(true).call()
+            // Only Pact's folder was staged, so the commit can't pick up other apps' files.
+            val st = git.status().let { if (folder.isEmpty()) it else it.addPath(folder) }.call()
+            if (st.added.isNotEmpty() || st.changed.isNotEmpty() || st.removed.isNotEmpty()) {
                 val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
                 git.commit().setMessage("pact: $device $stamp").call()
                 parts += "committed"
@@ -63,6 +70,10 @@ object GitSync {
             if (remoteRef != null && !isAncestor(repo, remoteRef.objectId, head!!)) {
                 val result = git.merge().include(remoteRef).setCommit(true).setMessage("pact: merge").call()
                 if (result.mergeStatus == MergeResult.MergeStatus.CONFLICTING) {
+                    result.conflicts.keys.firstOrNull { !owns(it) }?.let { other ->
+                        git.reset().setMode(ResetCommand.ResetType.HARD).setRef(head.name).call()
+                        error("merge conflict outside Pact's folder ($other)")
+                    }
                     val n = resolveConflicts(git, head, remoteRef.objectId, result.conflicts.keys)
                     git.commit().setMessage("pact: merge ($n conflict(s) resolved)").call()
                     parts += "$n conflict(s) resolved"
