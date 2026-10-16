@@ -1,7 +1,8 @@
 name: Build
 
-# Every push builds a debug APK and the desktop apps.
-# Pushing a tag like v0.1.0 also builds a signed APK and publishes a GitHub release.
+# Every commit to main (and every v* tag) builds a signed APK and the desktop apps
+# and publishes them as a GitHub release. Pull requests only build and test.
+# Commits to main are versioned v0.1.<run number>; push a tag like v0.2.0 for a named version.
 
 on:
   push:
@@ -12,10 +13,12 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main: every commit gets its own release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+  IS_RELEASE: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+  VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.1.{0}', github.run_number) }}
 
 jobs:
   android:
@@ -27,7 +30,7 @@ jobs:
     env:
       # Always increasing, so each build can be installed over the previous one.
       PACT_VERSION_CODE: ${{ github.run_number }}
-      PACT_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.0-dev.{0}', github.run_number) }}
+      PACT_VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.1.{0}', github.run_number) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -110,7 +113,7 @@ jobs:
 
   release:
     name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [android, desktop]
     runs-on: ubuntu-latest
     permissions:
@@ -124,5 +127,9 @@ jobs:
         run: rm -f dist/*-debug.apk && ls -la dist
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Pact ${{ env.VERSION }}
           files: dist/*
           generate_release_notes: true
+          make_latest: true
