@@ -30,7 +30,13 @@ data class Recurrence(
     val workdays: Boolean = false,
     @SerialName("month_day") val monthDay: Int? = null,
     val month: Int? = null,
-)
+    /** Last date an occurrence may fall on (`YYYY-MM-DD`), inclusive. */
+    val until: String? = null,
+    /** Total number of occurrences, counting the first. */
+    val count: Int? = null,
+) {
+    val untilDate: LocalDate? get() = until?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+}
 
 @Serializable
 enum class AttachmentKind {

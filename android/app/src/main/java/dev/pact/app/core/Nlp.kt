@@ -32,6 +32,22 @@ data class Parsed(
     val group: String? = null,
     val reminders: List<Long> = emptyList(),
     val urgent: Boolean = false,
+    /** The text named a day (not just a time or a repeat rule). */
+    val dateExplicit: Boolean = false,
+)
+
+/** What quick add understood for a calendar event; start/end times null = all-day. */
+data class ParsedEvent(
+    val title: String,
+    val date: LocalDate,
+    val startTime: LocalTime?,
+    val endDate: LocalDate,
+    val endTime: LocalTime?,
+    val recurrence: Recurrence?,
+    val group: String?,
+    val reminders: List<Long>,
+    val urgent: Boolean,
+    val dateExplicit: Boolean,
 )
 
 object Nlp {
@@ -307,6 +323,7 @@ object Nlp {
         }
         if (date == null) date = absoluteDate(t, today, cfg)
 
+        val dateExplicit = date != null || todayHint
         if (date == null && todayHint) date = today
         if (recurrence != null) {
             if (time == null) time = recTime
@@ -332,7 +349,90 @@ object Nlp {
             group = group,
             reminders = reminders,
             urgent = urgent,
+            dateExplicit = dateExplicit,
         )
+    }
+
+    // ---- Events (port of parse_event in core/src/nlp.rs) ---------------------------------
+
+    private const val TIME_FRAG = """(\d{1,2})(?:[:.](\d{2}))?\s*(am\b|pm\b|a\.m\.|p\.m\.)?"""
+    private val E_ALL_DAY = re("""\ball[\s-]day\b""")
+    private val E_RANGE_FROM = re("""\bfrom\s+(?:at\s+)?$TIME_FRAG\s*(?:-|–|to|until|till)\s*$TIME_FRAG""")
+    private val E_RANGE = re("""(?:\bat\s+)?\b$TIME_FRAG\s*(?:-|–|to|until|till)\s*$TIME_FRAG""")
+    private val E_DUR = re("""\bfor\s+(<NUM>|half\s+an?)\s*(minutes|minute|mins|min|m|hours|hour|hrs|hr|h)\b""")
+    private val E_DUR_HOUR_HALF = re("""\bfor\s+(?:an?|one)\s+hour\s+and\s+a\s+half\b""")
+
+    private fun fragTime(m: MatchResult, i: Int, mer: Boolean?): LocalTime? {
+        val h = m.int(i) ?: return null
+        val min = if (m.g(i + 1) != null) m.int(i + 1) ?: return null else 0
+        return when {
+            mer == null -> hm(h, min)
+            h in 1..12 -> hm(if (mer) h % 12 + 12 else h % 12, min)
+            else -> null
+        }
+    }
+
+    private fun meridiem(m: MatchResult, i: Int): Boolean? = m.lc(i)?.startsWith("p")
+
+    /** "3-5pm", "11am to 1pm", "9:30-10:15", "from 3 to 5" → (start, end). */
+    private fun timeRange(m: MatchResult, fromWord: Boolean): Pair<LocalTime, LocalTime>? {
+        val sm = meridiem(m, 3)
+        val em = meridiem(m, 6)
+        val colons = m.g(2) != null && m.g(5) != null
+        if (sm == null && em == null) {
+            if (colons) return (fragTime(m, 1, null) ?: return null) to (fragTime(m, 4, null) ?: return null)
+            if (!fromWord) return null
+            // "from 3 to 5" reads like "at 3": small hours are afternoon.
+            val fix = { t: LocalTime -> if (t.hour in 1..6) t.plusHours(12) else t }
+            return fix(fragTime(m, 1, null) ?: return null) to fix(fragTime(m, 4, null) ?: return null)
+        }
+        val end = fragTime(m, 4, em ?: sm) ?: return null
+        val start = if (sm != null) {
+            fragTime(m, 1, sm) ?: return null
+        } else {
+            // "11-1pm" is 11am to 1pm; "3-5pm" is 3pm to 5pm.
+            val same = fragTime(m, 1, em) ?: return null
+            if (!same.isAfter(end)) same else fragTime(m, 1, em?.not()) ?: return null
+        }
+        return start to end
+    }
+
+    /**
+     * Quick add for events: everything [parse] understands, plus time ranges ("3-5pm",
+     * "from 9 to 11"), durations ("for 45 min") and "all day". Without a time the event
+     * is all-day; without an end it lasts an hour.
+     */
+    fun parseEvent(input: String, now: LocalDateTime = LocalDateTime.now(), cfg: NlpConfig = NlpConfig()): ParsedEvent {
+        val today = now.toLocalDate()
+        val t = Text(input)
+        val allDay = t.take(E_ALL_DAY) { true } != null
+        val range = t.take(E_RANGE_FROM) { timeRange(it, true) } ?: t.take(E_RANGE) { timeRange(it, false) }
+        val duration = t.take(E_DUR_HOUR_HALF) { 90L } ?: t.take(E_DUR) {
+            val mult = reminderMinutes(it.g(2)!!)
+            if (it.lc(1)!!.startsWith("half")) mult / 2 else (num(it.g(1)!!) ?: return@take null) * mult
+        }
+        val p = parse(t.s, now, cfg)
+
+        val startTime = if (allDay) null else range?.first ?: p.time
+        var date = p.date ?: if (startTime != null && !startTime.isAfter(now.toLocalTime())) today.plusDays(1) else today
+        val rec = p.recurrence
+        if (rec != null && startTime != null && range != null && p.date == today && startTime.isBefore(now.toLocalTime())) {
+            date = Recur.nextAfter(rec, today)
+        }
+        val endDate: LocalDate
+        val endTime: LocalTime?
+        if (startTime == null) {
+            endDate = date
+            endTime = null
+        } else if (range != null) {
+            endTime = range.second
+            endDate = if (!endTime.isAfter(startTime)) date.plusDays(1) else date
+        } else {
+            val end = date.atTime(startTime).plusMinutes(duration ?: 60)
+            endDate = end.toLocalDate()
+            endTime = end.toLocalTime()
+        }
+        return ParsedEvent(p.title, date, startTime, endDate, endTime, p.recurrence, p.group, p.reminders, p.urgent, p.dateExplicit)
     }
 
     private fun parseRecurrence(t: Text, cfg: NlpConfig, setTime: (LocalTime?) -> Unit): Recurrence? {

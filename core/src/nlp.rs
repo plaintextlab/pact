@@ -58,6 +58,8 @@ pub struct Parsed {
     pub group: Option<String>,
     pub reminders: Vec<i64>,
     pub urgent: bool,
+    /// The text named a day (not just a time or a repeat rule).
+    pub date_explicit: bool,
 }
 
 const WD: &str = "monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|tue|wed|thurs|thur|thu|fri|sat|sun";
@@ -429,6 +431,7 @@ pub fn parse(input: &str, now: NaiveDateTime, cfg: &NlpConfig) -> Parsed {
         date = absolute_date(&mut t, today, cfg);
     }
 
+    p.date_explicit = date.is_some() || today_hint;
     if date.is_none() && today_hint {
         date = Some(today);
     }
@@ -592,6 +595,114 @@ fn absolute_date(t: &mut Text, today: NaiveDate, cfg: &NlpConfig) -> Option<Naiv
         })
 }
 
+// ---- Events -------------------------------------------------------------------------
+
+const TIME_FRAG: &str = r"(\d{1,2})(?:[:.](\d{2}))?\s*(am\b|pm\b|a\.m\.|p\.m\.)?";
+
+static E_ALL_DAY: LazyLock<Regex> = LazyLock::new(|| re(r"\ball[\s-]day\b"));
+static E_RANGE_FROM: LazyLock<Regex> = LazyLock::new(|| re(&format!(r"\bfrom\s+(?:at\s+)?{TIME_FRAG}\s*(?:-|–|to|until|till)\s*{TIME_FRAG}")));
+static E_RANGE: LazyLock<Regex> = LazyLock::new(|| re(&format!(r"(?:\bat\s+)?\b{TIME_FRAG}\s*(?:-|–|to|until|till)\s*{TIME_FRAG}")));
+static E_DUR: LazyLock<Regex> = LazyLock::new(|| re(r"\bfor\s+(<NUM>|half\s+an?)\s*(minutes|minute|mins|min|m|hours|hour|hrs|hr|h)\b"));
+static E_DUR_HOUR_HALF: LazyLock<Regex> = LazyLock::new(|| re(r"\bfor\s+(?:an?|one)\s+hour\s+and\s+a\s+half\b"));
+
+/// What quick add understood for a calendar event.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParsedEvent {
+    pub title: String,
+    pub date: NaiveDate,
+    /// None = all-day.
+    pub start_time: Option<NaiveTime>,
+    pub end_date: NaiveDate,
+    pub end_time: Option<NaiveTime>,
+    pub recurrence: Option<Recurrence>,
+    pub group: Option<String>,
+    pub reminders: Vec<i64>,
+    pub urgent: bool,
+    pub date_explicit: bool,
+}
+
+/// Hour/minute from a TIME_FRAG capture at `i`; `mer` overrides the written am/pm.
+fn frag_time(c: &Captures, i: usize, mer: Option<bool>) -> Option<NaiveTime> {
+    let h = int(c, i)?;
+    let m = if c.get(i + 1).is_some() { int(c, i + 1)? } else { 0 };
+    match mer {
+        Some(pm) if (1..=12).contains(&h) => hm(if pm { h % 12 + 12 } else { h % 12 }, m),
+        Some(_) => None,
+        None => hm(h, m),
+    }
+}
+
+fn meridiem(c: &Captures, i: usize) -> Option<bool> {
+    c.get(i).map(|m| m.as_str().to_lowercase().starts_with('p'))
+}
+
+/// "3-5pm", "11am to 1pm", "9:30-10:15", "from 3 to 5" → (start, end).
+fn time_range(c: &Captures, from_word: bool) -> Option<(NaiveTime, NaiveTime)> {
+    let (sm, em) = (meridiem(c, 3), meridiem(c, 6));
+    let colons = c.get(2).is_some() && c.get(5).is_some();
+    if sm.is_none() && em.is_none() {
+        if colons {
+            return Some((frag_time(c, 1, None)?, frag_time(c, 4, None)?));
+        }
+        if !from_word {
+            return None;
+        }
+        // "from 3 to 5" reads like "at 3": small hours are afternoon.
+        let fix = |t: NaiveTime| if (1..=6).contains(&t.hour()) { t + Duration::hours(12) } else { t };
+        return Some((fix(frag_time(c, 1, None)?), fix(frag_time(c, 4, None)?)));
+    }
+    let end = frag_time(c, 4, em.or(sm))?;
+    let start = match sm {
+        Some(pm) => frag_time(c, 1, Some(pm))?,
+        None => {
+            // "11-1pm" is 11am to 1pm; "3-5pm" is 3pm to 5pm.
+            let same = frag_time(c, 1, em)?;
+            if same <= end { same } else { frag_time(c, 1, em.map(|pm| !pm))? }
+        }
+    };
+    Some((start, end))
+}
+
+/// Quick add for events: everything `parse` understands, plus time ranges
+/// ("3-5pm", "from 9 to 11"), durations ("for 45 min") and "all day".
+/// Without a time the event is all-day; without an end it lasts an hour.
+pub fn parse_event(input: &str, now: NaiveDateTime, cfg: &NlpConfig) -> ParsedEvent {
+    let today = now.date();
+    let mut t = Text(input.to_string());
+    let all_day = t.take(&E_ALL_DAY, |_| Some(())).is_some();
+    let range = t.take(&E_RANGE_FROM, |c| time_range(c, true)).or_else(|| t.take(&E_RANGE, |c| time_range(c, false)));
+    let duration = t.take(&E_DUR_HOUR_HALF, |_| Some(90)).or_else(|| {
+        t.take(&E_DUR, |c| {
+            let mult = reminder_minutes(&c[2]);
+            Some(if lc(c, 1)?.starts_with("half") { mult / 2 } else { num(&c[1])? * mult })
+        })
+    });
+    let p = parse(&t.0, now, cfg);
+
+    let start_time = if all_day { None } else { range.map(|r| r.0).or(p.time) };
+    let mut date = match (p.date, start_time) {
+        (Some(d), _) => d,
+        (None, Some(st)) if st <= now.time() => today + Duration::days(1),
+        _ => today,
+    };
+    if let (Some(r), Some(st), Some(_)) = (&p.recurrence, start_time, range) {
+        if p.date == Some(today) && st < now.time() {
+            date = next_after(r, today);
+        }
+    }
+    let (end_date, end_time) = match start_time {
+        None => (date, None),
+        Some(st) => match range {
+            Some((_, et)) => (if et <= st { date + Duration::days(1) } else { date }, Some(et)),
+            None => {
+                let end = date.and_time(st) + Duration::minutes(duration.unwrap_or(60));
+                (end.date(), Some(end.time()))
+            }
+        },
+    };
+    ParsedEvent { title: p.title, date, start_time, end_date, end_time, recurrence: p.recurrence, group: p.group, reminders: p.reminders, urgent: p.urgent, date_explicit: p.date_explicit }
+}
+
 fn clean_title(s: &str) -> String {
     let mut s = s.split_whitespace().collect::<Vec<_>>().join(" ");
     loop {
@@ -652,6 +763,36 @@ mod tests {
             }
             if case.get("urgent").is_some() {
                 check("urgent", Value::from(p.urgent));
+            }
+        }
+        assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
+    }
+
+    #[test]
+    fn shared_event_cases() {
+        let spec: Value = serde_json::from_str(include_str!("../../spec/event_nlp_cases.json")).unwrap();
+        let now = NaiveDateTime::parse_from_str(spec["now"].as_str().unwrap(), "%Y-%m-%dT%H:%M:%S").unwrap();
+        let mut failures = vec![];
+        for case in spec["cases"].as_array().unwrap() {
+            let input = case["input"].as_str().unwrap();
+            let p = parse_event(input, now, &NlpConfig::default());
+            let t = |x: Option<NaiveTime>| x.map(|t| Value::from(t.format("%H:%M").to_string())).unwrap_or(Value::Null);
+            let got = serde_json::json!({
+                "title": p.title, "date": p.date.to_string(), "start": t(p.start_time),
+                "end_date": p.end_date.to_string(), "end": t(p.end_time),
+                "rec": serde_json::to_value(&p.recurrence).unwrap(), "group": p.group,
+            });
+            for (k, want) in case.as_object().unwrap() {
+                if k == "input" {
+                    continue;
+                }
+                let ok = match (k.as_str(), &got[k]) {
+                    ("rec", Value::Object(g)) => want.as_object().unwrap().iter().all(|(rk, rv)| g.get(rk) == Some(rv)),
+                    (_, g) => g == want,
+                };
+                if !ok {
+                    failures.push(format!("{input:?}: {k} = {}, want {want}", got[k]));
+                }
             }
         }
         assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));

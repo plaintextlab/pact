@@ -30,7 +30,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -88,15 +90,37 @@ fun ParsedChips(p: Parsed, defaultDate: LocalDate? = null) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun QuickAddSheet(cfg: NlpConfig, defaults: QuickAddDefaults, hint: String = "e.g. Meeting tomorrow at 10am #Work p1", onAdd: (String) -> Unit, onDismiss: () -> Unit) {
+fun QuickAddSheet(
+    cfg: NlpConfig,
+    defaults: QuickAddDefaults,
+    onAdd: (String) -> Unit,
+    onDismiss: () -> Unit,
+    eventMode: Boolean = false,
+    onModeChange: ((Boolean) -> Unit)? = null,
+    onAddEvent: (String) -> Unit = {},
+    onMoreOptions: (() -> Unit)? = null,
+) {
     var text by remember { mutableStateOf("") }
+    val hint = if (eventMode) "e.g. Lunch with Sam tomorrow 1-2pm #Work" else "e.g. Meeting tomorrow at 10am #Work p1"
+    fun submit() {
+        if (text.isBlank()) return
+        if (eventMode) onAddEvent(text) else onAdd(text)
+        text = ""
+    }
     val focus = remember { FocusRequester() }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 20.dp).imePadding()) {
-            Text("New task", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (eventMode) "New event" else "New task", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                if (onModeChange != null) {
+                    FilterChip(!eventMode, { onModeChange(false) }, label = { Text("Task") })
+                    Spacer(Modifier.width(6.dp))
+                    FilterChip(eventMode, { onModeChange(true) }, label = { Text("Event") })
+                }
+            }
             Spacer(Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -105,24 +129,38 @@ fun QuickAddSheet(cfg: NlpConfig, defaults: QuickAddDefaults, hint: String = "e.
                     placeholder = { Text(hint) },
                     modifier = Modifier.weight(1f).focusRequester(focus),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        if (text.isNotBlank()) {
-                            onAdd(text)
-                            text = ""
-                        }
-                    }),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
                     shape = MaterialTheme.shapes.large,
                 )
                 Spacer(Modifier.width(8.dp))
-                FilledIconButton(onClick = {
-                    if (text.isNotBlank()) {
-                        onAdd(text)
-                        text = ""
-                    }
-                }, enabled = text.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.Send, "Add") }
+                FilledIconButton(onClick = { submit() }, enabled = text.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.Send, "Add") }
             }
             Spacer(Modifier.size(8.dp))
-            if (text.isNotBlank()) {
+            if (eventMode) {
+                if (text.isNotBlank()) {
+                    val e = remember(text, cfg) { Nlp.parseEvent(text, cfg = cfg) }
+                    val day = if (!e.dateExplicit && e.recurrence == null) defaults.date ?: e.date else e.date
+                    val whenText = if (e.startTime == null) Format.date(day) + " · all day"
+                    else Format.date(day) + " · " + Format.time(e.startTime) + " – " + Format.time(e.endTime ?: e.startTime)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PreviewChip(Icons.Filled.Event, whenText)
+                        e.recurrence?.let { PreviewChip(Icons.Filled.Repeat, Recur.describe(it)) }
+                        e.group?.let { PreviewChip(Icons.Filled.Tag, it) }
+                        e.reminders.forEach { PreviewChip(Icons.Filled.Notifications, "${formatOffset(it)} before") }
+                        if (e.urgent) PreviewChip(Icons.Filled.Alarm, "alarm", MaterialTheme.colorScheme.error)
+                    }
+                    if (e.title.isNotEmpty()) Text("→ “${e.title}”", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text(
+                        "Try: tomorrow 3-5pm · friday 10am for 45 min · every monday 9:30 · next week all day · #group",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (onMoreOptions != null) {
+                    TextButton(onClick = onMoreOptions) { Text("More options…") }
+                }
+            } else if (text.isNotBlank()) {
                 val p = remember(text, cfg) { Nlp.parse(text, cfg = cfg) }
                 ParsedChips(p, defaults.date)
                 if (p.title.isNotEmpty()) Text("→ “${p.title}”", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

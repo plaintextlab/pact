@@ -49,7 +49,9 @@ class AlarmActivity : ComponentActivity() {
         val app = application as PactApp
         val id = intent.getStringExtra(Notifier.EXTRA_TASK) ?: return finish()
         val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
-        val task = app.store.task(id) ?: return finish()
+        val event = Notifier.parseEventKey(id)?.let { app.store.event(it.first) }
+        val task = app.store.task(id)
+        val name = task?.title ?: event?.title ?: return finish()
 
         setContent {
             val settings by app.settings.state.collectAsState()
@@ -62,7 +64,7 @@ class AlarmActivity : ComponentActivity() {
                     ) {
                         Icon(Icons.Filled.Alarm, null, Modifier.size(96.dp), tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.height(24.dp))
-                        Text(task.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                        Text(name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(8.dp))
                         Text(text, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(48.dp))
@@ -74,11 +76,13 @@ class AlarmActivity : ComponentActivity() {
                                 ReminderScheduler.snooze(this@AlarmActivity, id, settings.snoozeMinutes)
                                 finish()
                             }) { Text("Snooze ${settings.snoozeMinutes} min") }
-                            FilledTonalButton(onClick = {
-                                Notifier.cancel(this@AlarmActivity, id)
-                                app.store.setCompleted(id, true)
-                                finish()
-                            }) { Text("Complete") }
+                            if (task != null) {
+                                FilledTonalButton(onClick = {
+                                    Notifier.cancel(this@AlarmActivity, id)
+                                    app.store.setCompleted(id, true)
+                                    finish()
+                                }) { Text("Complete") }
+                            }
                         }
                     }
                 }

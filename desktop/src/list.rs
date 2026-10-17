@@ -116,22 +116,56 @@ impl PactApp {
     pub fn quick_add_bar(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>, defaults: QuickAddDefaults) {
         let c = self.colors.clone();
         egui::Frame::new().fill(c.surface).corner_radius(CornerRadius::same(28)).inner_margin(Margin::symmetric(16, 8)).show(ui, |ui| {
+            let in_calendar = self.view == View::Calendar && self.search.is_empty();
+            let event_mode = in_calendar && self.quick_add_event;
             ui.horizontal(|ui| {
                 ui.label(RichText::new("➕").color(c.primary).size(18.0));
+                if in_calendar {
+                    ui.selectable_value(&mut self.quick_add_event, false, "Task");
+                    ui.selectable_value(&mut self.quick_add_event, true, "Event");
+                }
+                let hint = if event_mode {
+                    "Add an event — “Lunch with Sam tomorrow 1-2pm #Work”"
+                } else {
+                    "Add a task — “Meeting tomorrow at 10am #Work p1 remind me 15 min before”"
+                };
                 let edit = egui::TextEdit::singleline(&mut self.quick_add)
                     .id(egui::Id::new("quick-add"))
-                    .hint_text("Add a task — “Meeting tomorrow at 10am #Work p1 remind me 15 min before”")
+                    .hint_text(hint)
                     .frame(false)
                     .font(FontId::proportional(16.0))
                     .desired_width(ui.available_width() - 90.0);
                 let r = ui.add(edit);
                 let submit = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 if (style::filled_button(ui, &c, "Add").clicked() || submit) && !self.quick_add.trim().is_empty() {
-                    actions.push(Action::QuickAdd(std::mem::take(&mut self.quick_add), defaults.clone()));
+                    let text = std::mem::take(&mut self.quick_add);
+                    actions.push(if event_mode { Action::QuickAddEvent(text, defaults.date) } else { Action::QuickAdd(text, defaults.clone()) });
                     r.request_focus();
                 }
             });
-            if !self.quick_add.trim().is_empty() {
+            if event_mode && !self.quick_add.trim().is_empty() {
+                let mut q = nlp::parse_event(&self.quick_add, Local::now().naive_local(), &self.settings.nlp);
+                if let (Some(d), false) = (defaults.date, q.date_explicit || q.recurrence.is_some()) {
+                    q.date = d;
+                }
+                let when = match (q.start_time, q.end_time) {
+                    (Some(s), Some(t)) => format!("📅 {} · {} – {}", friendly_date(q.date, today()), fmt_time(s), fmt_time(t)),
+                    _ => format!("📅 {} · all day", friendly_date(q.date, today())),
+                };
+                ui.horizontal_wrapped(|ui| {
+                    ui.add_space(28.0);
+                    style::chip(ui, when, c.fg, c.tonal);
+                    if let Some(r) = &q.recurrence {
+                        style::chip(ui, format!("🔁 {}", recur::describe(r)), c.fg, c.tonal);
+                    }
+                    if let Some(g) = &q.group {
+                        style::chip(ui, format!("# {g}"), c.fg, c.tonal);
+                    }
+                    if !q.title.is_empty() {
+                        ui.label(RichText::new(format!("→ “{}”", q.title)).color(c.muted).size(12.5));
+                    }
+                });
+            } else if !self.quick_add.trim().is_empty() {
                 let p = nlp::parse(&self.quick_add, Local::now().naive_local(), &self.settings.nlp);
                 ui.horizontal_wrapped(|ui| {
                     ui.add_space(28.0);

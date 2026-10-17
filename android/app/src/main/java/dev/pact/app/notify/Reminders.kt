@@ -8,12 +8,15 @@ import android.content.Intent
 import android.os.Build
 import dev.pact.app.MainActivity
 import dev.pact.app.PactApp
+import dev.pact.app.core.Event
+import dev.pact.app.core.Occurrence
 import dev.pact.app.core.Task
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-data class ReminderEvent(val at: LocalDateTime, val task: Task, val offset: Long)
+/** A reminder for a task or for one occurrence of an event. */
+data class ReminderEvent(val at: LocalDateTime, val offset: Long, val urgent: Boolean, val task: Task? = null, val occurrence: Occurrence? = null)
 
 /**
  * Keeps a single exact alarm armed for the next reminder. When it fires, everything
@@ -24,14 +27,31 @@ object ReminderScheduler {
     private const val LAST_CHECK = "last_check"
     private const val GRACE_MINUTES = 15L
 
-    fun events(tasks: Collection<Task>, allDayAnchor: LocalTime): List<ReminderEvent> = tasks
-        .filter { !it.deleted && !it.completed && it.date != null }
-        .flatMap { t ->
-            val due = t.date!!.atTime(t.time ?: allDayAnchor)
-            val offsets = t.reminders + if (t.time != null || t.urgent) listOf(0L) else emptyList()
-            offsets.distinct().map { ReminderEvent(due.minusMinutes(it), t, it) }
-        }
-        .sortedBy { it.at }
+    /** How far ahead event occurrences are expanded; a fallback wake-up re-checks after that. */
+    private const val EVENT_HORIZON_DAYS = 35L
+
+    fun events(tasks: Collection<Task>, evs: Collection<Event>, allDayAnchor: LocalTime, now: LocalDateTime = LocalDateTime.now()): List<ReminderEvent> {
+        val forTasks = tasks
+            .filter { !it.deleted && !it.completed && it.date != null }
+            .flatMap { t ->
+                val due = t.date!!.atTime(t.time ?: allDayAnchor)
+                val offsets = t.reminders + if (t.time != null || t.urgent) listOf(0L) else emptyList()
+                offsets.distinct().map { ReminderEvent(due.minusMinutes(it), it, t.urgent, task = t) }
+            }
+        val from = now.toLocalDate().minusDays(1)
+        val forEvents = evs
+            .filter { !it.deleted && (it.reminders.isNotEmpty() || it.urgent) }
+            .flatMap { e ->
+                val offsets = (e.reminders + if (e.urgent) listOf(0L) else emptyList()).distinct()
+                e.occurrences(from, now.toLocalDate().plusDays(EVENT_HORIZON_DAYS)).flatMap { o ->
+                    val start = if (o.allDay) o.date.atTime(allDayAnchor) else o.start
+                    offsets.map { ReminderEvent(start.minusMinutes(it), it, e.urgent, occurrence = o) }
+                }
+            }
+        return (forTasks + forEvents).sortedBy { it.at }
+    }
+
+    private fun anchor(app: PactApp) = LocalTime.of(app.settings.value.nlp.morningHour.coerceIn(0, 23), 0)
 
     private fun millis(dt: LocalDateTime) = dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
@@ -47,19 +67,19 @@ object ReminderScheduler {
 
     fun schedule(context: Context) {
         val app = context.applicationContext as PactApp
-        val anchor = LocalTime.of(app.settings.value.nlp.morningHour.coerceIn(0, 23), 0)
         val now = LocalDateTime.now()
-        val next = events(app.store.liveTasks(), anchor).firstOrNull { it.at.isAfter(now) }
+        val next = events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now).firstOrNull { it.at.isAfter(now) }
         val am = context.getSystemService(AlarmManager::class.java)
         val pi = pending(context)
         if (next == null) {
-            am.cancel(pi)
+            // Nothing within the horizon: wake up later to look again.
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(now.plusDays(EVENT_HORIZON_DAYS - 5)), pi)
             return
         }
         val at = millis(next.at)
         when {
             !canExact(context) -> am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-            next.task.urgent -> {
+            next.urgent -> {
                 // Alarm-clock alarms are the most reliable and show in the status bar.
                 val show = PendingIntent.getActivity(context, 2, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
                 am.setAlarmClock(AlarmManager.AlarmClockInfo(at, show), pi)
@@ -77,10 +97,16 @@ object ReminderScheduler {
         val last = prefs.getLong(LAST_CHECK, 0L).let { ms ->
             if (ms == 0L) floor else LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(ms), ZoneId.systemDefault())
         }.let { if (it.isBefore(floor)) floor else it }
-        val anchor = LocalTime.of(app.settings.value.nlp.morningHour.coerceIn(0, 23), 0)
         if (app.settings.value.notifications) {
-            for (e in events(app.store.liveTasks(), anchor).filter { it.at.isAfter(last) && !it.at.isAfter(now) }) {
-                if (e.task.urgent) Notifier.alarm(context, e.task, e.offset) else Notifier.reminder(context, e.task, e.offset)
+            for (e in events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now).filter { it.at.isAfter(last) && !it.at.isAfter(now) }) {
+                val t = e.task
+                val o = e.occurrence
+                when {
+                    t != null && e.urgent -> Notifier.alarm(context, t, e.offset)
+                    t != null -> Notifier.reminder(context, t, e.offset)
+                    o != null && e.urgent -> Notifier.eventAlarm(context, o, e.offset)
+                    o != null -> Notifier.eventReminder(context, o, e.offset)
+                }
             }
         }
         prefs.edit().putLong(LAST_CHECK, millis(now)).apply()
@@ -102,7 +128,14 @@ class ReminderReceiver : BroadcastReceiver() {
         when (intent.action) {
             SNOOZED -> {
                 val app = context.applicationContext as PactApp
-                val t = app.store.task(intent.getStringExtra(Notifier.EXTRA_TASK)) ?: return
+                val key = intent.getStringExtra(Notifier.EXTRA_TASK) ?: return
+                val ev = Notifier.parseEventKey(key)
+                if (ev != null) {
+                    val o = app.store.event(ev.first)?.occurrences(ev.second, ev.second)?.firstOrNull() ?: return
+                    if (o.event.urgent) Notifier.eventAlarm(context, o, 0) else Notifier.eventReminder(context, o, 0)
+                    return
+                }
+                val t = app.store.task(key) ?: return
                 if (t.completed) return
                 if (t.urgent) Notifier.alarm(context, t, 0) else Notifier.reminder(context, t, 0)
             }
@@ -132,6 +165,7 @@ class ActionReceiver : BroadcastReceiver() {
         when (intent.action) {
             COMPLETE -> {
                 Notifier.cancel(context, id)
+                if (Notifier.parseEventKey(id) != null) return
                 app.store.setCompleted(id, true)
                 app.store.task(id)?.let { if (it.pinned && !it.completed) Notifier.pinned(context, it) else Notifier.cancelPinned(context, id) }
             }

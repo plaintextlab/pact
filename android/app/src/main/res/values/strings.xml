@@ -8,4 +8,6 @@
     <string name="launcher_reminders">Reminders</string>
     <string name="widget_name">Pact tasks</string>
     <string name="widget_description">Your tasks for today, a group or the inbox</string>
+    <string name="calendar_widget_name">Pact calendar</string>
+    <string name="calendar_widget_description">Month view with your upcoming events</string>
 </resources>

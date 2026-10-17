@@ -56,7 +56,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import dev.pact.app.LauncherNames
+import dev.pact.app.Shortcuts
+import dev.pact.app.data.PhoneCalendar
 import dev.pact.app.core.Themes
 import dev.pact.app.notify.ReminderScheduler
 import dev.pact.app.ui.AppViewModel
@@ -75,6 +80,12 @@ fun SettingsScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val dark = isDark(s, isSystemInDarkTheme())
+    val askCalendar = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        vm.updateSettings { it.copy(showPhoneCalendars = ok) }
+        if (!ok) vm.say("Calendar permission is needed to show phone calendars")
+    }
+    val importIcs = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.importIcs(it) } }
+    val exportIcs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/calendar")) { uri -> uri?.let { vm.exportIcs(it) } }
 
     Scaffold(
         topBar = {
@@ -173,6 +184,35 @@ fun SettingsScreen(vm: AppViewModel) {
                         context.startActivity(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
                     }) { Text("Allow exact alarms") }
                 }
+
+                Header("Calendar")
+                SwitchLine("Show tasks in the calendar", s.calendarShowTasks) { v -> vm.updateSettings { it.copy(calendarShowTasks = v) } }
+                SwitchLine("Show phone calendars (Google, Exchange…)", s.showPhoneCalendars) { v ->
+                    if (v && !PhoneCalendar.hasPermission(context)) askCalendar.launch(Manifest.permission.READ_CALENDAR)
+                    else vm.updateSettings { it.copy(showPhoneCalendars = v) }
+                }
+                Text("Phone calendars are shown read-only; tap one of their events to open it in its own app.", style = MaterialTheme.typography.bodySmall, color = muted)
+                Segmented("New events last", listOf(30 to "30 min", 60 to "1 h", 90 to "1.5 h", 120 to "2 h"), s.eventMinutes) { m -> vm.updateSettings { it.copy(eventMinutes = m) } }
+                Text("Default calendar for new events", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(s.defaultCalendar == null, { vm.updateSettings { it.copy(defaultCalendar = null) } }, label = { Text("None") })
+                    vm.store.liveGroups().forEach { g ->
+                        FilterChip(s.defaultCalendar == g.id, { vm.updateSettings { it.copy(defaultCalendar = g.id) } }, label = { Text(g.name) })
+                    }
+                }
+                var eventRem by remember { mutableStateOf(s.eventReminders.joinToString(", ")) }
+                OutlinedTextField(eventRem, {
+                    eventRem = it
+                    vm.updateSettings { st -> st.copy(eventReminders = parseNums(it)) }
+                }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Reminders for new events (minutes before)") }, singleLine = true)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { importIcs.launch(arrayOf("text/calendar", "text/x-vcalendar", "application/ics", "*/*")) }) { Text("Import .ics") }
+                    FilledTonalButton(onClick = { exportIcs.launch("pact-calendar.ics") }) { Text("Export .ics") }
+                }
+                Button(onClick = {
+                    if (!Shortcuts.pinCalendar(context)) vm.say("Your launcher can't pin shortcuts; long-press the Pact icon and drag “Calendar” instead")
+                }, Modifier.padding(top = 8.dp)) { Text("Add Calendar to home screen") }
+                Text("Tip: long-press the Pact icon for Calendar, New event and New task shortcuts.", style = MaterialTheme.typography.bodySmall, color = muted)
 
                 Header("Sync (git)")
                 Text(

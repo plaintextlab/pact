@@ -3,13 +3,16 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use chrono::{Datelike, Duration as CDuration, Local, NaiveDate, NaiveTime};
+use chrono::{Datelike, Duration as CDuration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use eframe::egui::{self, Color32, CornerRadius, Margin, RichText, Vec2};
+use pact_core::event::Event;
 use pact_core::model::{AttachmentKind, Group, Task};
 use pact_core::settings::Settings;
 use pact_core::store::{self, QuickAddDefaults, Store};
 use pact_core::sync::SyncConfig;
 
+use crate::calendar::CalMode;
+use crate::events::{EditScope, EventEdit};
 use crate::reminders::{notify, AlarmSound, Fire, Reminders};
 use crate::style::{self, Colors};
 use crate::sync_worker::SyncWorker;
@@ -27,6 +30,7 @@ pub enum View {
     Label(String),
 }
 
+#[derive(Clone)]
 pub enum Action {
     Save(Task),
     Complete(String, bool),
@@ -45,6 +49,15 @@ pub enum Action {
     SetView(View),
     EditGroup(Option<String>),
     SyncNow,
+    /// Event id and the occurrence clicked (for recurring events).
+    OpenEvent(String, Option<NaiveDate>),
+    NewEvent(NaiveDateTime, bool),
+    SaveEvent(EditScope),
+    SaveEventCopy(Event),
+    DeleteEvent(EditScope),
+    QuickAddEvent(String, Option<NaiveDate>),
+    ImportIcs,
+    ExportIcs,
 }
 
 pub struct ActiveAlarm {
@@ -88,6 +101,10 @@ pub struct PactApp {
     pub search: String,
     pub cal_month: NaiveDate,
     pub cal_day: NaiveDate,
+    pub cal_mode: CalMode,
+    pub event_edit: Option<EventEdit>,
+    /// Quick add creates events instead of tasks (calendar view).
+    pub quick_add_event: bool,
     pub show_settings: bool,
     pub group_edit: Option<GroupEdit>,
     pub note_edit: Option<NoteEdit>,
@@ -104,6 +121,7 @@ pub struct PactApp {
     title_applied: String,
     pub presets_text: String,
     pub default_reminders_text: String,
+    pub event_reminders_text: String,
     screenshot: Option<(PathBuf, u32)>,
 }
 
@@ -129,7 +147,9 @@ impl PactApp {
             store,
             presets_text: join_nums(&settings.reminder_presets),
             default_reminders_text: join_nums(&settings.default_reminders),
+            event_reminders_text: join_nums(&settings.event_reminders),
             folder_text: settings.git_folder.clone(),
+            cal_mode: CalMode::from_setting(&settings.calendar_view),
             settings,
             settings_path,
             default_data_dir,
@@ -142,6 +162,8 @@ impl PactApp {
             search: String::new(),
             cal_month: today().with_day(1).unwrap(),
             cal_day: today(),
+            event_edit: None,
+            quick_add_event: true,
             show_settings: false,
             group_edit: None,
             note_edit: None,
@@ -158,6 +180,16 @@ impl PactApp {
             title_applied: String::new(),
             screenshot: std::env::var_os("PACT_SCREENSHOT").map(|p| (PathBuf::from(p), 0)),
         };
+        // Dev hooks used for screenshots: PACT_CAL_MODE=week, PACT_EDIT_FIRST_EVENT=1.
+        if let Ok(m) = std::env::var("PACT_CAL_MODE") {
+            app.cal_mode = CalMode::from_setting(&m);
+        }
+        if std::env::var("PACT_EDIT_FIRST_EVENT").is_ok() {
+            let first = app.store.agenda(today(), today() + CDuration::days(7)).first().map(|(e, o)| (e.id.clone(), o.date()));
+            if let Some((id, d)) = first {
+                app.apply(&cc.egui_ctx, vec![Action::OpenEvent(id, Some(d))]);
+            }
+        }
         if std::env::var("PACT_SELECT_FIRST").is_ok() {
             app.selected = app.store.children(None).first().map(|t| t.id.clone());
         }
@@ -251,6 +283,9 @@ impl PactApp {
                     self.store.delete_task(&id)
                 }
                 Action::Select(id) => {
+                    if id.is_some() {
+                        self.event_edit = None;
+                    }
                     if id != self.selected {
                         self.inputs = DetailInputs { custom_reminder: 15, ..Default::default() };
                     }
@@ -331,6 +366,65 @@ impl PactApp {
                     self.request_sync();
                     Ok(())
                 }
+                Action::OpenEvent(id, occurrence) => {
+                    if let Some(e) = self.store.event(&id).cloned() {
+                        self.selected = None;
+                        self.event_edit = Some(EventEdit::open(e, occurrence));
+                    }
+                    Ok(())
+                }
+                Action::NewEvent(start, all_day) => {
+                    self.selected = None;
+                    let group = self.settings.default_calendar.clone().filter(|g| self.store.group(Some(g)).is_some());
+                    self.event_edit = Some(EventEdit::new_event(start, all_day, self.settings.event_minutes, self.settings.event_reminders.clone(), group));
+                    Ok(())
+                }
+                Action::SaveEvent(scope) => self.save_event(scope),
+                Action::SaveEventCopy(e) => {
+                    self.event_edit = None;
+                    self.show_toast(format!("Duplicated “{}”", e.title));
+                    self.store.save_event(e)
+                }
+                Action::DeleteEvent(scope) => match self.event_edit.take() {
+                    Some(ed) => match (ed.original, ed.occurrence, scope) {
+                        (Some(o), Some(d), EditScope::This) if o.recurrence.is_some() => self.store.skip_occurrence(&o.id, d),
+                        (Some(o), _, _) => self.store.delete_event(&o.id),
+                        _ => Ok(()),
+                    },
+                    None => Ok(()),
+                },
+                Action::QuickAddEvent(text, date) => {
+                    let now = Local::now().naive_local();
+                    let group = self.settings.default_calendar.clone().filter(|g| self.store.group(Some(g)).is_some());
+                    match self.store.quick_add_event(&text, now, &self.settings.nlp, group, date) {
+                        Ok(Some(mut e)) => {
+                            if e.reminders.is_empty() && !self.settings.event_reminders.is_empty() {
+                                e.reminders = self.settings.event_reminders.clone();
+                                let _ = self.store.save_event(e.clone());
+                            }
+                            let when = if e.all_day() { "all day".to_string() } else { crate::list::fmt_time(e.start().time()) };
+                            self.show_toast(format!("Added “{}” · {} {when}", e.title, crate::list::friendly_date(e.start().date(), today())));
+                            Ok(())
+                        }
+                        Ok(None) => Ok(()),
+                        Err(e) => Err(e),
+                    }
+                }
+                Action::ImportIcs => match rfd::FileDialog::new().add_filter("iCalendar", &["ics", "ical", "ifb", "icalendar"]).pick_file() {
+                    Some(path) => std::fs::read_to_string(&path).map_err(anyhow::Error::from).and_then(|text| {
+                        let (added, updated) = self.store.import_ics(&text)?;
+                        self.show_toast(format!("Imported {added} new, {updated} updated event(s)"));
+                        Ok(())
+                    }),
+                    None => Ok(()),
+                },
+                Action::ExportIcs => match rfd::FileDialog::new().set_file_name("pact-calendar.ics").add_filter("iCalendar", &["ics"]).save_file() {
+                    Some(path) => {
+                        let n = self.store.live_events().count();
+                        std::fs::write(&path, self.store.export_ics()).map_err(anyhow::Error::from).map(|_| self.show_toast(format!("Exported {n} event(s)")))
+                    }
+                    None => Ok(()),
+                },
             };
             match res {
                 Ok(()) => self.mark_dirty(),
@@ -576,6 +670,7 @@ impl PactApp {
         // Ringing alarms for urgent tasks.
         if let Some(alarm) = self.alarms.first() {
             let id = alarm.fire.task_id.clone();
+            let is_event = alarm.fire.is_event;
             let mut close = None;
             egui::Modal::new(egui::Id::new("alarm")).show(ctx, |ui| {
                 ui.set_width(380.0);
@@ -591,7 +686,7 @@ impl PactApp {
                         if style::tonal_button(ui, &c, &format!("Snooze {} min", self.settings.snooze_minutes)).clicked() {
                             close = Some(1);
                         }
-                        if style::tonal_button(ui, &c, "✔ Complete").clicked() {
+                        if !is_event && style::tonal_button(ui, &c, "✔ Complete").clicked() {
                             close = Some(2);
                         }
                     });
@@ -603,7 +698,7 @@ impl PactApp {
                     s.stop();
                 }
                 match choice {
-                    1 => self.reminders.snooze(&id, Local::now().naive_local() + CDuration::minutes(self.settings.snooze_minutes as i64)),
+                    1 => self.reminders.snooze(a.fire.clone(), Local::now().naive_local() + CDuration::minutes(self.settings.snooze_minutes as i64)),
                     2 => actions.push(Action::Complete(id, true)),
                     _ => {}
                 }
@@ -624,6 +719,37 @@ impl PactApp {
                     });
                 });
             }
+        }
+    }
+
+    /// Saves the event editor's draft. For one occurrence of a series, `This` splits it
+    /// off; `All` updates the series, shifting it by however far the occurrence moved.
+    fn save_event(&mut self, scope: EditScope) -> Result<()> {
+        let Some(ed) = self.event_edit.take() else { return Ok(()) };
+        let mut draft = ed.draft;
+        draft.title = draft.title.trim().to_string();
+        match (ed.original, ed.occurrence) {
+            (Some(orig), Some(occ)) if orig.recurrence.is_some() => {
+                if scope == EditScope::This {
+                    self.store.skip_occurrence(&orig.id, occ)?;
+                    draft.id = Event::new("", occ, None).id;
+                    draft.recurrence = None;
+                    draft.exdates.clear();
+                    draft.uid = None;
+                    self.store.save_event(draft)
+                } else {
+                    let shift = draft.start().date() - occ;
+                    let start = (orig.start().date() + shift).and_time(draft.start().time());
+                    let len = draft.end() - draft.start();
+                    let all_day = draft.all_day();
+                    draft.set_span(start, start + len, all_day);
+                    draft.id = orig.id;
+                    draft.exdates = orig.exdates;
+                    draft.uid = orig.uid;
+                    self.store.save_event(draft)
+                }
+            }
+            _ => self.store.save_event(draft),
         }
     }
 
@@ -671,7 +797,11 @@ impl eframe::App for PactApp {
 
         let mut actions = vec![];
         self.sidebar(ctx, &mut actions);
-        self.detail_panel(ctx, &mut actions);
+        if self.event_edit.is_some() {
+            self.event_panel(ctx, &mut actions);
+        } else {
+            self.detail_panel(ctx, &mut actions);
+        }
         self.central(ctx, &mut actions);
         self.dialogs(ctx, &mut actions);
         self.apply(ctx, actions);

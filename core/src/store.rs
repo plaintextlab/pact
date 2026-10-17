@@ -5,10 +5,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use chrono::{Local, NaiveDateTime};
+use chrono::{Local, NaiveDate, NaiveDateTime};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::event::{Event, Occurrence};
+use crate::ics;
 use crate::model::{Attachment, AttachmentKind, Group, Task};
 use crate::nlp::{self, NlpConfig};
 use crate::{now_millis, recur};
@@ -19,6 +21,7 @@ pub struct Store {
     pub root: PathBuf,
     pub tasks: BTreeMap<String, Task>,
     pub groups: BTreeMap<String, Group>,
+    pub events: BTreeMap<String, Event>,
 }
 
 fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<()> {
@@ -48,14 +51,14 @@ fn safe_file_name(name: &str) -> String {
 impl Store {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self> {
         let root = root.into();
-        for d in ["tasks", "groups", "attachments"] {
+        for d in ["tasks", "groups", "events", "attachments"] {
             fs::create_dir_all(root.join(d)).with_context(|| format!("creating {}", root.join(d).display()))?;
         }
         let attrs = root.join(".gitattributes");
         if !attrs.exists() {
             fs::write(&attrs, "*.json text eol=lf\nattachments/** binary\n")?;
         }
-        let mut s = Self { root, tasks: BTreeMap::new(), groups: BTreeMap::new() };
+        let mut s = Self { root, tasks: BTreeMap::new(), groups: BTreeMap::new(), events: BTreeMap::new() };
         s.reload();
         if s.groups.is_empty() {
             // Fixed ids so two fresh devices don't create duplicate default groups.
@@ -70,6 +73,7 @@ impl Store {
     pub fn reload(&mut self) {
         self.tasks = read_dir_json::<Task>(&self.root.join("tasks")).into_iter().map(|t| (t.id.clone(), t)).collect();
         self.groups = read_dir_json::<Group>(&self.root.join("groups")).into_iter().map(|g| (g.id.clone(), g)).collect();
+        self.events = read_dir_json::<Event>(&self.root.join("events")).into_iter().map(|e| (e.id.clone(), e)).collect();
     }
 
     pub fn task(&self, id: &str) -> Option<&Task> {
@@ -161,8 +165,12 @@ impl Store {
         let Some(mut t) = self.task(id).cloned() else { return Ok(()) };
         let today = Local::now().date_naive();
         if done {
-            if let (Some(r), Some(due)) = (t.recurrence.clone(), t.date()) {
-                t.set_date(Some(recur::advance(&r, due, today)));
+            let next = match (&t.recurrence, t.date()) {
+                (Some(r), Some(due)) => Some(recur::advance(r, due, today)).filter(|n| r.until_date().is_none_or(|u| *n <= u)),
+                _ => None,
+            };
+            if let Some(next) = next {
+                t.set_date(Some(next));
                 t.completed = false;
                 t.completed_at = None;
                 for sub in self.descendants(id) {
@@ -236,6 +244,154 @@ impl Store {
             let _ = fs::remove_file(self.root.join("groups").join(format!("{id}.json")));
             self.groups.remove(&id);
         }
+        let old: Vec<String> = self.events.values().filter(|e| e.deleted && e.updated < cutoff).map(|e| e.id.clone()).collect();
+        for id in old {
+            let _ = fs::remove_file(self.root.join("events").join(format!("{id}.json")));
+            self.events.remove(&id);
+        }
+    }
+
+    /// The id of the group named `name`, creating it if needed.
+    pub fn group_id_for_name(&mut self, name: &str) -> Result<String> {
+        if let Some(g) = self.find_group_by_name(name) {
+            return Ok(g.id.clone());
+        }
+        let n = self.groups.len();
+        let g = Group::new(name, crate::model::GROUP_COLORS[n % crate::model::GROUP_COLORS.len()]);
+        let id = g.id.clone();
+        self.save_group(g)?;
+        Ok(id)
+    }
+
+    // ---- Events ---------------------------------------------------------------------
+
+    pub fn event(&self, id: &str) -> Option<&Event> {
+        self.events.get(id).filter(|e| !e.deleted)
+    }
+
+    pub fn live_events(&self) -> impl Iterator<Item = &Event> {
+        self.events.values().filter(|e| !e.deleted)
+    }
+
+    pub fn save_event(&mut self, mut e: Event) -> Result<()> {
+        e.updated = now_millis();
+        write_json(&self.root.join("events").join(format!("{}.json", e.id)), &e)?;
+        self.events.insert(e.id.clone(), e);
+        Ok(())
+    }
+
+    pub fn delete_event(&mut self, id: &str) -> Result<()> {
+        match self.events.get(id).cloned() {
+            Some(mut e) => {
+                e.deleted = true;
+                self.save_event(e)
+            }
+            None => Ok(()),
+        }
+    }
+
+    /// Cancels one occurrence of a recurring event.
+    pub fn skip_occurrence(&mut self, id: &str, date: NaiveDate) -> Result<()> {
+        let Some(mut e) = self.event(id).cloned() else { return Ok(()) };
+        let d = date.format(crate::model::DATE_FMT).to_string();
+        if !e.exdates.contains(&d) {
+            e.exdates.push(d);
+        }
+        self.save_event(e)
+    }
+
+    /// Splits one occurrence off a recurring event so it can be edited on its own.
+    pub fn detach_occurrence(&mut self, id: &str, date: NaiveDate) -> Result<Option<Event>> {
+        let Some(series) = self.event(id).cloned() else { return Ok(None) };
+        let Some(occ) = series.occurrences(date, date).into_iter().find(|o| o.date() == date) else { return Ok(None) };
+        let mut one = series.clone();
+        one.id = uuid::Uuid::new_v4().to_string();
+        one.uid = None;
+        one.recurrence = None;
+        one.exdates.clear();
+        one.created = now_millis();
+        one.set_span(occ.start, occ.end, occ.all_day);
+        self.skip_occurrence(id, date)?;
+        self.save_event(one.clone())?;
+        Ok(Some(one))
+    }
+
+    /// All event occurrences touching `from..=to`, all-day first, then by start.
+    pub fn agenda(&self, from: NaiveDate, to: NaiveDate) -> Vec<(&Event, Occurrence)> {
+        let mut v: Vec<(&Event, Occurrence)> = self.live_events().flat_map(|e| e.occurrences(from, to).into_iter().map(move |o| (e, o))).collect();
+        v.sort_by(|a, b| (!a.1.all_day, a.1.start, &a.0.title).cmp(&(!b.1.all_day, b.1.start, &b.0.title)));
+        v
+    }
+
+    /// Creates an event from quick-add text ("Lunch tomorrow 1-2pm #Work").
+    /// `date` (e.g. the day picked in the calendar) applies when the text names no date.
+    pub fn quick_add_event(&mut self, text: &str, now: NaiveDateTime, cfg: &NlpConfig, group_id: Option<String>, date: Option<NaiveDate>) -> Result<Option<Event>> {
+        let mut p = nlp::parse_event(text, now, cfg);
+        if p.title.is_empty() {
+            return Ok(None);
+        }
+        if let Some(d) = date {
+            if !p.date_explicit && p.recurrence.is_none() {
+                let shift = d - p.date;
+                p.date = d;
+                p.end_date += shift;
+            }
+        }
+        let mut e = Event::new(p.title, p.date, p.start_time);
+        match (p.start_time, p.end_time) {
+            (Some(st), Some(et)) => e.set_span(p.date.and_time(st), p.end_date.and_time(et), false),
+            _ => e.end_date = p.end_date.format(crate::model::DATE_FMT).to_string(),
+        }
+        e.recurrence = p.recurrence;
+        e.reminders = p.reminders;
+        e.urgent = p.urgent;
+        e.group_id = match p.group {
+            Some(name) => Some(self.group_id_for_name(&name)?),
+            None => group_id,
+        };
+        self.save_event(e.clone())?;
+        Ok(Some(e))
+    }
+
+    /// Imports an iCalendar file. Events already known by UID (including Pact's own
+    /// exported `<id>@pact` UIDs) are updated in place. Returns (added, updated).
+    pub fn import_ics(&mut self, text: &str) -> Result<(usize, usize)> {
+        let mut categories = vec![];
+        let events = ics::import(text, |cat| {
+            categories.push(cat.to_string());
+            Some(format!("category:{cat}"))
+        });
+        let mut group_ids = vec![];
+        for cat in categories {
+            let id = self.group_id_for_name(&cat)?;
+            group_ids.push((format!("category:{cat}"), id));
+        }
+        let (mut added, mut updated) = (0, 0);
+        for mut e in events {
+            if let Some(key) = e.group_id.take() {
+                e.group_id = group_ids.iter().find(|(k, _)| *k == key).map(|(_, id)| id.clone());
+            }
+            let known = e.uid.as_deref().and_then(|u| {
+                let own = u.strip_suffix("@pact").and_then(|id| self.events.get(id));
+                own.or_else(|| self.events.values().find(|x| x.uid.as_deref() == Some(u))).map(|x| (x.id.clone(), x.created, x.uid.clone()))
+            });
+            match known {
+                Some((id, created, uid)) => {
+                    e.id = id;
+                    e.created = created;
+                    e.uid = uid;
+                    updated += 1;
+                }
+                None => added += 1,
+            }
+            self.save_event(e)?;
+        }
+        Ok((added, updated))
+    }
+
+    pub fn export_ics(&self) -> String {
+        let events: Vec<&Event> = self.live_events().collect();
+        ics::export(&events, &self.live_groups())
     }
 
     /// Creates a task from quick-add text. `#Group` picks (or creates) a group.
@@ -248,19 +404,9 @@ impl Store {
         t.parent_id = defaults.parent_id;
         t.group_id = defaults.group_id;
         if let Some(name) = p.group {
-            let gid = match self.find_group_by_name(&name) {
-                Some(g) => g.id.clone(),
-                None => {
-                    let n = self.groups.len();
-                    let g = Group::new(name, crate::model::GROUP_COLORS[n % crate::model::GROUP_COLORS.len()]);
-                    let id = g.id.clone();
-                    self.save_group(g)?;
-                    id
-                }
-            };
-            t.group_id = Some(gid);
+            t.group_id = Some(self.group_id_for_name(&name)?);
         }
-        t.set_date(p.date.or(defaults.date));
+        t.set_date(if p.date_explicit || p.recurrence.is_some() { p.date } else { defaults.date.or(p.date) });
         t.set_time(p.time);
         t.recurrence = p.recurrence;
         t.priority = p.priority.unwrap_or(4);
@@ -346,6 +492,37 @@ mod tests {
         assert!(!s2.task(&sub.id).unwrap().completed);
         s.delete_task(&t.id).unwrap();
         assert!(s.task(&sub.id).is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn events_quick_add_detach_and_ics_reimport() {
+        let dir = tmp();
+        let mut s = Store::open(&dir).unwrap();
+        let now = NaiveDate::from_ymd_opt(2026, 10, 16).unwrap().and_hms_opt(9, 0, 0).unwrap();
+        let cfg = NlpConfig::default();
+        let day = |n: i64| now.date() + chrono::Duration::days(n);
+
+        let e = s.quick_add_event("Standup every weekday 9:30-9:45am #Work", now, &cfg, None, None).unwrap().unwrap();
+        assert_eq!(e.group_id.as_deref(), Some("work"));
+        assert_eq!(s.agenda(day(0), day(6)).len(), 5);
+        let one = s.detach_occurrence(&e.id, day(3)).unwrap().unwrap();
+        assert!(one.recurrence.is_none());
+        assert_eq!(s.agenda(day(0), day(6)).len(), 5, "detached, not lost");
+        s.skip_occurrence(&e.id, day(4)).unwrap();
+        assert_eq!(s.agenda(day(0), day(6)).len(), 4);
+
+        let lunch = s.quick_add_event("Lunch 1-2pm", now, &cfg, None, Some(day(5))).unwrap().unwrap();
+        assert_eq!(lunch.start_date, day(5).to_string());
+
+        // Re-importing our own export updates every event instead of duplicating.
+        let n = s.live_events().count();
+        let text = s.export_ics();
+        assert_eq!(s.import_ics(&text).unwrap(), (0, n));
+        assert_eq!(s.live_events().count(), n);
+
+        let reopened = Store::open(&dir).unwrap();
+        assert_eq!(reopened.live_events().count(), n);
         fs::remove_dir_all(dir).unwrap();
     }
 

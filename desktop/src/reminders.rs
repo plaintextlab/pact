@@ -11,22 +11,25 @@ use pact_core::store::Store;
 /// Fire reminders that were missed by at most this much (e.g. while asleep).
 const GRACE_MINUTES: i64 = 15;
 
+#[derive(Clone)]
 pub struct Fire {
     pub task_id: String,
     pub title: String,
     pub body: String,
     pub alarm: bool,
+    /// An event occurrence (no "Complete").
+    pub is_event: bool,
 }
 
 #[derive(Default)]
 pub struct Reminders {
     fired: HashSet<String>,
-    snoozed: Vec<(String, NaiveDateTime)>,
+    snoozed: Vec<(Fire, NaiveDateTime)>,
 }
 
 impl Reminders {
-    pub fn snooze(&mut self, task_id: &str, until: NaiveDateTime) {
-        self.snoozed.push((task_id.to_string(), until));
+    pub fn snooze(&mut self, fire: Fire, until: NaiveDateTime) {
+        self.snoozed.push((fire, until));
     }
 
     /// Events due now. All-day tasks use `all_day_time` as their reminder anchor.
@@ -51,11 +54,33 @@ impl Reminders {
                 }
             }
         }
+        for e in store.live_events().filter(|e| !e.reminders.is_empty() || e.urgent) {
+            let mut offsets = e.reminders.clone();
+            if e.urgent && !offsets.contains(&0) {
+                offsets.push(0);
+            }
+            for o in e.occurrences(now.date() - CDuration::days(1), now.date() + CDuration::days(2)) {
+                let start = if o.all_day { o.date().and_time(all_day_time) } else { o.start };
+                for off in &offsets {
+                    let at = start - CDuration::minutes(*off);
+                    if at > now || at <= window_start {
+                        continue;
+                    }
+                    if self.fired.insert(format!("e|{}|{}|{}", e.id, o.start, off)) {
+                        let lead = if *off == 0 { "Now".to_string() } else { format!("Starts in {}", format_offset(*off)) };
+                        let when = if o.all_day { "All day".to_string() } else { format!("{}–{}", crate::list::fmt_time(o.start.time()), crate::list::fmt_time(o.end.time())) };
+                        let body = [lead, when, e.location.clone()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · ");
+                        out.push(Fire { task_id: e.id.clone(), title: e.title.clone(), body, alarm: e.urgent, is_event: true });
+                    }
+                }
+            }
+        }
         let (ready, waiting): (Vec<_>, Vec<_>) = self.snoozed.drain(..).partition(|(_, at)| *at <= now);
         self.snoozed = waiting;
-        for (id, _) in ready {
-            if let Some(t) = store.task(&id).filter(|t| !t.completed) {
-                out.push(fire_for(t, 0));
+        for (f, _) in ready {
+            // Snoozed tasks that got completed in the meantime stay quiet.
+            if f.is_event || store.task(&f.task_id).is_some_and(|t| !t.completed) {
+                out.push(f);
             }
         }
         out
@@ -69,7 +94,7 @@ fn fire_for(t: &Task, offset: i64) -> Fire {
         (m, _) => format!("Due in {}", format_offset(m)),
     };
     let body = if t.notes.trim().is_empty() { when } else { format!("{when}\n{}", t.notes.lines().next().unwrap_or("")) };
-    Fire { task_id: t.id.clone(), title: t.title.clone(), body, alarm: t.urgent }
+    Fire { task_id: t.id.clone(), title: t.title.clone(), body, alarm: t.urgent, is_event: false }
 }
 
 pub fn notify(app_name: &str, title: &str, body: &str, persistent: bool) {

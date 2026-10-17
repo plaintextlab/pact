@@ -22,7 +22,11 @@ It runs on Android and on Linux, Windows and macOS.
 - **Pinned notifications** keep a task in the notification shade. On Android, if you swipe one away, it is posted again.
 - **Themes**: Gruvbox (default), Everforest, Nord, Catppuccin, Tokyo Night, Dracula, Solarized, Rosé Pine, Kanagawa. Each has a light and a dark variant.
 - **App name**: on desktop, any name you like. On Android, pick a launcher name: Pact, ToDo, Tasks, To-do list, Checklist or Reminders.
-- **Android widget**: configurable. Choose Today, the next 7 days, Inbox, All or one group; whether to include subtasks and completed tasks; the background opacity; and a title.
+- **Calendar** with Month, Week, Day and Agenda views. Events have start/end times or are all-day, can span several days and repeat (daily, weekdays, weekly on chosen days, monthly, yearly, every N, until a date or N times). You can edit or delete one occurrence or the whole series. Events also have a location, a link, notes, a calendar (your groups) with its color, reminders and an optional alarm. Dated tasks show alongside events.
+- **Quick add for events**: `Lunch with Sam tomorrow 1-2pm`, `Standup every weekday 9:30-9:45am #Work`, `Workshop friday from 2pm to 5pm`, `Review in 2 days at 3pm for 30 min`, `Conference 20 oct all day`
+- **.ics import/export** to move events to and from Google Calendar, Outlook, Apple Calendar and others
+- **Android only**: show your phone's calendars (Google, Exchange…) read-only next to Pact events; long-press the app icon for Calendar, New event and New task shortcuts; pin a Calendar icon from Settings; a **calendar widget** with a month grid you can page through, or an upcoming-events list
+- **Android task widget**: configurable. Choose Today, the next 7 days, Inbox, All or one group; whether to include subtasks and completed tasks; the background opacity; and a title.
 
 ## Quick add cheat sheet
 
@@ -40,7 +44,9 @@ It runs on Android and on Linux, Windows and macOS.
 | `remind me 15 min before`, `!30m` | reminders |
 | `!!`, `!urgent`, `alarm 10 min before` | urgent: rings an alarm |
 
-The full list of examples is in [spec/nlp_cases.json](spec/nlp_cases.json). The Rust and Kotlin parsers are both tested against it.
+Events understand the same phrases plus `3-5pm`, `11am to 1pm`, `from 9 to 5`, `9:30-10:15`, `for 45 min`, `for 2 hours` and `all day`.
+
+The full list of examples is in [spec/nlp_cases.json](spec/nlp_cases.json) and [spec/event_nlp_cases.json](spec/event_nlp_cases.json). The Rust and Kotlin parsers are both tested against them.
 
 ## Sync
 

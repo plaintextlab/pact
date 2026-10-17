@@ -3,6 +3,8 @@
 //! The Android app has a Kotlin port of `nlp` and `recur`; both are tested against
 //! `spec/nlp_cases.json`, and both read/write the layout in `spec/data-format.md`.
 
+pub mod event;
+pub mod ics;
 pub mod model;
 pub mod nlp;
 pub mod recur;

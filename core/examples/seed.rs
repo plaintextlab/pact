@@ -36,6 +36,26 @@ fn main() -> anyhow::Result<()> {
     t.pinned = true;
     t.notes = "Tag the release, build installers and publish.".into();
     s.save_task(t)?;
-    println!("seeded {} tasks into {dir}", s.live_tasks().count());
+    for text in [
+        "Team standup every weekday 9:30-9:45am #Work",
+        "Lunch with Sam tomorrow 1-2pm",
+        "Sprint planning monday 10am for 2 hours #Work",
+        "Design review monday 11am-12:30pm #Work",
+        "1:1 with manager monday 11:30am for 30 min #Work",
+        "Gym every mon, wed and fri 6-7pm #Personal",
+        "Conference next thursday all day #Study",
+        "Dentist friday 3pm for 45 min #Personal",
+        "Movie night saturday 8pm-10:30pm",
+        "Mom's birthday every oct 24",
+    ] {
+        s.quick_add_event(text, now, &cfg, None, None)?;
+    }
+    let lunch = s.live_events().find(|e| e.title == "Lunch with Sam").cloned();
+    if let Some(mut e) = lunch {
+        e.location = "Cafe Nero, High St".into();
+        e.notes = "Talk about the release".into();
+        s.save_event(e)?;
+    }
+    println!("seeded {} tasks and {} events into {dir}", s.live_tasks().count(), s.live_events().count());
     Ok(())
 }

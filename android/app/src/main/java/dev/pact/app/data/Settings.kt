@@ -34,6 +34,17 @@ data class Settings(
     @SerialName("launcher_name") val launcherName: String = "Pact",
     /** "system", "12h" or "24h". */
     @SerialName("time_format") val timeFormat: String = "system",
+    /** Last calendar view: "month", "week", "day" or "agenda". */
+    @SerialName("calendar_view") val calendarView: String = "month",
+    /** Length of new timed events. */
+    @SerialName("event_minutes") val eventMinutes: Int = 60,
+    /** Reminders (minutes before) for new events. */
+    @SerialName("event_reminders") val eventReminders: List<Long> = listOf(10),
+    /** Group used as the calendar for new events; null = none. */
+    @SerialName("default_calendar") val defaultCalendar: String? = null,
+    @SerialName("calendar_show_tasks") val calendarShowTasks: Boolean = true,
+    /** Overlay events from the phone's own calendars (read-only). */
+    @SerialName("show_phone_calendars") val showPhoneCalendars: Boolean = false,
 )
 
 class SettingsRepo(private val file: File) {

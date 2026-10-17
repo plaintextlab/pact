@@ -24,11 +24,21 @@ pub struct Recurrence {
     pub workdays: bool,
     pub month_day: Option<u32>,
     pub month: Option<u32>,
+    /// Last date an occurrence may fall on (`YYYY-MM-DD`), inclusive.
+    pub until: Option<String>,
+    /// Total number of occurrences, counting the first.
+    pub count: Option<u32>,
 }
 
 impl Default for Recurrence {
     fn default() -> Self {
-        Self { freq: Freq::Daily, interval: 1, weekdays: vec![], workdays: false, month_day: None, month: None }
+        Self { freq: Freq::Daily, interval: 1, weekdays: vec![], workdays: false, month_day: None, month: None, until: None, count: None }
+    }
+}
+
+impl Recurrence {
+    pub fn until_date(&self) -> Option<NaiveDate> {
+        self.until.as_deref().and_then(|d| NaiveDate::parse_from_str(d, DATE_FMT).ok())
     }
 }
 

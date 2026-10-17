@@ -11,6 +11,7 @@ import dev.pact.app.notify.ReminderScheduler
 import dev.pact.app.sync.GitSync
 import dev.pact.app.sync.SyncWorker
 import dev.pact.app.ui.Format
+import dev.pact.app.widget.CalendarWidget
 import dev.pact.app.widget.PactWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,10 +54,11 @@ class PactApp : Application() {
         scope.launch { store.changes.debounce(400).collect { onDataChanged(local = true) } }
         // Clock format, launcher icon/name and widgets follow the settings.
         scope.launch {
-            settings.state.distinctUntilChangedBy { Triple(it.timeFormat, it.theme, it.themeMode) to it.launcherName }.collect { s ->
+            settings.state.distinctUntilChangedBy { listOf(it.timeFormat, it.theme, it.themeMode, it.launcherName, it.calendarShowTasks, it.showPhoneCalendars, it.nlp.weekStart) }.collect { s ->
                 applyClock(s)
                 runCatching { LauncherNames.apply(this@PactApp, s.launcherName, s.theme) }
                 runCatching { PactWidget().updateAll(this@PactApp) }
+                runCatching { CalendarWidget().updateAll(this@PactApp) }
                 Notifier.syncPinned(this@PactApp, store.liveTasks())
             }
         }
@@ -67,6 +69,7 @@ class PactApp : Application() {
         }
         ReminderScheduler.schedule(this)
         Notifier.syncPinned(this, store.liveTasks())
+        Shortcuts.publish(this)
         if (settings.value.gitRemote.isNotBlank()) SyncWorker.soon(this, 2)
     }
 
@@ -83,7 +86,10 @@ class PactApp : Application() {
     fun onDataChanged(local: Boolean) {
         ReminderScheduler.schedule(this)
         Notifier.syncPinned(this, store.tasks.value.values)
-        scope.launch { runCatching { PactWidget().updateAll(this@PactApp) } }
+        scope.launch {
+            runCatching { PactWidget().updateAll(this@PactApp) }
+            runCatching { CalendarWidget().updateAll(this@PactApp) }
+        }
         val s = settings.value
         if (local && s.syncOnChange && s.gitRemote.isNotBlank()) SyncWorker.soon(this)
     }

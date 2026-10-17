@@ -36,6 +36,15 @@ pub struct Settings {
     pub ui_scale: f32,
     /// 24-hour clock (`14:30`) instead of 12-hour (`2:30 PM`).
     pub clock_24h: bool,
+    /// Last calendar view: "month", "week", "day" or "agenda".
+    pub calendar_view: String,
+    /// Length of new timed events.
+    pub event_minutes: u32,
+    /// Reminders (minutes before) for new events.
+    pub event_reminders: Vec<i64>,
+    /// Group used as the calendar for new events.
+    pub default_calendar: Option<String>,
+    pub calendar_show_tasks: bool,
 }
 
 impl Default for Settings {
@@ -59,6 +68,11 @@ impl Default for Settings {
             show_completed: false,
             ui_scale: 1.0,
             clock_24h: true,
+            calendar_view: "month".into(),
+            event_minutes: 60,
+            event_reminders: vec![10],
+            default_calendar: None,
+            calendar_show_tasks: true,
         }
     }
 }

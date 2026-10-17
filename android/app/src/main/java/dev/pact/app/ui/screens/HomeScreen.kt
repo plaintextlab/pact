@@ -206,10 +206,14 @@ fun HomeScreen(vm: AppViewModel) {
                 )
             },
             floatingActionButton = {
+                val inCalendar = vm.view == View.Calendar && vm.search.isEmpty()
                 ExtendedFloatingActionButton(
-                    onClick = { vm.showQuickAdd = true },
+                    onClick = {
+                        vm.quickAddEvent = inCalendar
+                        vm.showQuickAdd = true
+                    },
                     icon = { Icon(Icons.Filled.Add, null) },
-                    text = { Text("Add task") },
+                    text = { Text(if (inCalendar) "New event" else "Add task") },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -218,7 +222,7 @@ fun HomeScreen(vm: AppViewModel) {
         ) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
                 if (vm.view == View.Calendar && vm.search.isEmpty()) {
-                    CalendarView(vm, tasks, settings.showCompleted)
+                    dev.pact.app.ui.calendar.CalendarScreen(vm, settings)
                 } else {
                     TaskList(vm, tasks, settings.showCompleted)
                 }
@@ -228,7 +232,19 @@ fun HomeScreen(vm: AppViewModel) {
 
     if (vm.showQuickAdd) {
         val defaults = vm.defaults()
-        QuickAddSheet(settings.nlp, defaults, onAdd = { vm.quickAdd(it, defaults) }, onDismiss = { vm.showQuickAdd = false })
+        QuickAddSheet(
+            settings.nlp, defaults,
+            onAdd = { vm.quickAdd(it, defaults) },
+            onDismiss = { vm.showQuickAdd = false },
+            eventMode = vm.quickAddEvent,
+            onModeChange = { vm.quickAddEvent = it },
+            onAddEvent = { vm.quickAddEvent(it, if (vm.view == View.Calendar) vm.calDay else null) },
+            onMoreOptions = {
+                vm.showQuickAdd = false
+                val day = if (vm.view == View.Calendar) vm.calDay else java.time.LocalDate.now()
+                vm.newEvent(day.atTime(java.time.LocalTime.now().plusHours(1).withMinute(0)))
+            },
+        )
     }
     vm.editingGroup?.let { g -> GroupDialog(vm, g) }
 }

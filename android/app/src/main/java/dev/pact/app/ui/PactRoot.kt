@@ -13,5 +13,6 @@ fun PactRoot(vm: AppViewModel) {
         Screen.Home -> HomeScreen(vm)
         is Screen.TaskDetail -> TaskScreen(vm, s.id)
         Screen.SettingsScreen -> SettingsScreen(vm)
+        is Screen.EventEdit -> dev.pact.app.ui.calendar.EventEditor(vm, s)
     }
 }

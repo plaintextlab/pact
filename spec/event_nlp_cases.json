@@ -1,0 +1,24 @@
+{
+  "comment": "Event quick-add test vectors shared by Rust and Kotlin. 'now' is Friday 09:00. Every key except input is compared; start/end null = all-day.",
+  "now": "2026-10-16T09:00:00",
+  "cases": [
+    { "input": "Lunch with Sam tomorrow 1pm for 1 hour", "title": "Lunch with Sam", "date": "2026-10-17", "start": "13:00", "end_date": "2026-10-17", "end": "14:00" },
+    { "input": "Standup every weekday 9:30-9:45am #Work", "title": "Standup", "date": "2026-10-16", "start": "09:30", "end": "09:45", "rec": { "freq": "daily", "workdays": true }, "group": "Work" },
+    { "input": "Conference 20 oct all day", "title": "Conference", "date": "2026-10-20", "start": null, "end_date": "2026-10-20", "end": null },
+    { "input": "Workshop friday from 2pm to 5pm", "title": "Workshop", "date": "2026-10-16", "start": "14:00", "end": "17:00" },
+    { "input": "Call 11-1pm", "title": "Call", "date": "2026-10-16", "start": "11:00", "end": "13:00" },
+    { "input": "Dinner at 7pm", "title": "Dinner", "date": "2026-10-16", "start": "19:00", "end": "20:00" },
+    { "input": "Gym tomorrow 18:00-19:30", "title": "Gym", "date": "2026-10-17", "start": "18:00", "end": "19:30" },
+    { "input": "Review in 2 days at 3pm for 30 min", "title": "Review", "date": "2026-10-18", "start": "15:00", "end": "15:30" },
+    { "input": "Holiday next week", "title": "Holiday", "date": "2026-10-19", "start": null, "end": null },
+    { "input": "Team sync every monday 10am for 45 minutes", "title": "Team sync", "date": "2026-10-19", "start": "10:00", "end": "10:45", "rec": { "freq": "weekly", "weekdays": [1] } },
+    { "input": "Sprint planning 2026-11-02 10:00 for 2h", "title": "Sprint planning", "date": "2026-11-02", "start": "10:00", "end": "12:00" },
+    { "input": "Late show tonight 11pm-1am", "title": "Late show", "date": "2026-10-16", "start": "23:00", "end_date": "2026-10-17", "end": "01:00" },
+    { "input": "Office hours from 9 to 5 on monday", "title": "Office hours", "date": "2026-10-19", "start": "09:00", "end": "17:00" },
+    { "input": "Coffee 8-9am", "title": "Coffee", "date": "2026-10-17", "start": "08:00", "end": "09:00" },
+    { "input": "Yoga on sat 7am for an hour and a half", "title": "Yoga", "date": "2026-10-17", "start": "07:00", "end": "08:30" },
+    { "input": "Board meeting dec 3 2-4pm remind me 30 min before", "title": "Board meeting", "date": "2026-12-03", "start": "14:00", "end": "16:00" },
+    { "input": "Birthday party", "title": "Birthday party", "date": "2026-10-16", "start": null, "end": null },
+    { "input": "Flight 2026-12-01 06:45 for 3 hours", "title": "Flight", "date": "2026-12-01", "start": "06:45", "end": "09:45" }
+  ]
+}

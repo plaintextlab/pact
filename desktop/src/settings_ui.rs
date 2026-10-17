@@ -84,6 +84,44 @@ impl PactApp {
                     }
                 });
 
+                style::section_title(ui, &c, "CALENDAR");
+                egui::Grid::new("calendar").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
+                    ui.label("Show tasks in the calendar");
+                    ui.checkbox(&mut s.calendar_show_tasks, "");
+                    ui.end_row();
+                    ui.label("New events last");
+                    ui.horizontal(|ui| {
+                        for (m, l) in [(30, "30 min"), (60, "1 h"), (90, "1.5 h"), (120, "2 h")] {
+                            ui.selectable_value(&mut s.event_minutes, m, l);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Default calendar");
+                    let current = s.default_calendar.as_deref().and_then(|id| self.store.group(Some(id))).map(|g| g.name.clone()).unwrap_or_else(|| "None".into());
+                    egui::ComboBox::from_id_salt("default-cal").selected_text(current).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut s.default_calendar, None, "None");
+                        for g in self.store.live_groups() {
+                            ui.selectable_value(&mut s.default_calendar, Some(g.id.clone()), &g.name);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Reminders for new events (min)");
+                    if ui.add(egui::TextEdit::singleline(&mut self.event_reminders_text).hint_text("10, 60")).changed() {
+                        s.event_reminders = parse_nums(&self.event_reminders_text);
+                    }
+                    ui.end_row();
+                    ui.label(".ics files");
+                    ui.horizontal(|ui| {
+                        if ui.button("Import…").clicked() {
+                            actions.push(Action::ImportIcs);
+                        }
+                        if ui.button("Export…").clicked() {
+                            actions.push(Action::ExportIcs);
+                        }
+                    });
+                    ui.end_row();
+                });
+
                 style::section_title(ui, &c, "REMINDERS");
                 egui::Grid::new("reminders").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
                     ui.label("Desktop notifications");

@@ -3,6 +3,7 @@
 mod app;
 mod calendar;
 mod detail;
+mod events;
 mod list;
 mod reminders;
 mod settings_ui;

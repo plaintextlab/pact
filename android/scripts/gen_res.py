@@ -54,6 +54,7 @@ w("app/src/main/AndroidManifest.xml", f"""
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
 
     <application
         android:name=".PactApp"
@@ -89,6 +90,14 @@ w("app/src/main/AndroidManifest.xml", f"""
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".widget.CalendarWidgetConfigActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver android:name=".notify.ReminderReceiver" android:exported="false" />
         <receiver android:name=".notify.ActionReceiver" android:exported="false" />
         <receiver android:name=".notify.BootReceiver" android:exported="false">
@@ -106,6 +115,13 @@ w("app/src/main/AndroidManifest.xml", f"""
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
+        </receiver>
+
+        <receiver android:name=".widget.CalendarWidgetReceiver" android:exported="true" android:label="@string/calendar_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/calendar_widget_info" />
         </receiver>
 
         <provider
@@ -130,6 +146,8 @@ w("res/values/strings.xml", """
     <string name="launcher_reminders">Reminders</string>
     <string name="widget_name">Pact tasks</string>
     <string name="widget_description">Your tasks for today, a group or the inbox</string>
+    <string name="calendar_widget_name">Pact calendar</string>
+    <string name="calendar_widget_description">Month view with your upcoming events</string>
 </resources>
 """)
 
@@ -162,6 +180,24 @@ w("res/xml/widget_info.xml", """
     android:minResizeHeight="80dp"
     android:targetCellWidth="3"
     android:targetCellHeight="3"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable" />
+""")
+
+w("res/xml/calendar_widget_info.xml", """
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="dev.pact.app.widget.CalendarWidgetConfigActivity"
+    android:description="@string/calendar_widget_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen"

@@ -133,10 +133,10 @@ pub fn describe(r: &Recurrence) -> String {
         Freq::Yearly => "year",
     };
     if r.freq == Freq::Daily && r.workdays {
-        return "every workday".into();
+        return with_end("every workday".into(), r);
     }
     if r.freq == Freq::Weekly && r.weekdays == [6, 7] && n == 1 {
-        return "every weekend".into();
+        return with_end("every weekend".into(), r);
     }
     let mut s = match n {
         1 => format!("every {unit}"),
@@ -160,7 +160,15 @@ pub fn describe(r: &Recurrence) -> String {
         }
         _ => {}
     }
-    s
+    with_end(s, r)
+}
+
+fn with_end(s: String, r: &Recurrence) -> String {
+    match (r.until_date(), r.count) {
+        (Some(u), _) => format!("{s} until {}", u.format("%-d %b %Y")),
+        (None, Some(n)) => format!("{s}, {n} times"),
+        _ => s,
+    }
 }
 
 #[cfg(test)]

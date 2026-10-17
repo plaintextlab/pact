@@ -12,6 +12,7 @@ conflict outside that folder aborts the sync instead of touching other apps' dat
     .gitattributes
     tasks/<task-id>.json
     groups/<group-id>.json
+    events/<event-id>.json
     attachments/<task-id>/<attachment-id>-<file name>
   <other apps' folders>/
 ```
@@ -54,13 +55,15 @@ tombstone) so the deletion syncs. Tombstones older than 30 days are purged.
 
 ```json
 { "freq": "daily|weekly|monthly|yearly", "interval": 1, "weekdays": [1,3,5],
-  "workdays": false, "month_day": 15, "month": 6 }
+  "workdays": false, "month_day": 15, "month": 6, "until": "2026-12-31", "count": null }
 ```
 
 * `weekdays` uses 1 = Monday … 7 = Sunday (weekly only).
 * `workdays` = Monday–Friday only (daily only).
 * `month_day` for monthly/yearly; values past the end of a month clamp to its last day.
 * `month` for yearly.
+* `until` (inclusive date) or `count` (occurrences including the first) end the series;
+  both null = forever. A recurring task past its `until` date closes normally.
 
 Completing a recurring task moves `due_date` to the next occurrence on or after
 today and keeps it open (Todoist behaviour). Its subtasks are reopened.
@@ -73,6 +76,33 @@ today and keeps it open (Todoist behaviour). Its subtasks are reopened.
 ```
 
 `text` attachments store their content inline in `text` and have no `path`.
+
+## Event
+
+| field        | type                   | notes                                                   |
+|--------------|------------------------|---------------------------------------------------------|
+| `id`         | string                 | UUID v4                                                 |
+| `title`      | string                 |                                                         |
+| `notes`      | string                 |                                                         |
+| `location`   | string                 |                                                         |
+| `group_id`   | string \| null         | the group doubles as the event's calendar (name, color) |
+| `start_date` | `"YYYY-MM-DD"`         |                                                         |
+| `start_time` | `"HH:MM"` \| null      | null = all-day event                                    |
+| `end_date`   | `"YYYY-MM-DD"`         | inclusive; same as `start_date` for one-day events      |
+| `end_time`   | `"HH:MM"` \| null      |                                                         |
+| `recurrence` | Recurrence \| null     | see above                                               |
+| `exdates`    | string[]               | start dates of cancelled occurrences                    |
+| `reminders`  | int[]                  | minutes before start (0 = at start)                     |
+| `urgent`     | bool                   | ring an alarm instead of a notification                 |
+| `color`      | string \| null         | overrides the group color; theme key or `#RRGGBB`       |
+| `url`        | string                 | video call / ticket link                                |
+| `uid`        | string \| null         | iCalendar UID of imported events                        |
+| `created`, `updated`, `deleted` | | as for tasks                                          |
+
+Editing one occurrence of a recurring event adds its date to `exdates` and saves a
+separate, non-recurring event for it. Events are exchanged with other calendar apps
+as iCalendar (`.ics`) files; re-importing a file updates events by `uid` instead of
+duplicating them.
 
 ## Group
 

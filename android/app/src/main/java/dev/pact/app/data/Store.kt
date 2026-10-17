@@ -5,6 +5,10 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import dev.pact.app.core.Attachment
 import dev.pact.app.core.AttachmentKind
+import dev.pact.app.core.Event
+import dev.pact.app.core.Ics
+import dev.pact.app.core.Occurrence
+import dev.pact.app.core.OccurrenceOrder
 import dev.pact.app.core.GROUP_COLORS
 import dev.pact.app.core.Group
 import dev.pact.app.core.Nlp
@@ -49,8 +53,10 @@ class Store(val root: File) {
 
     private val _tasks = MutableStateFlow<Map<String, Task>>(emptyMap())
     private val _groups = MutableStateFlow<Map<String, Group>>(emptyMap())
+    private val _events = MutableStateFlow<Map<String, Event>>(emptyMap())
     val tasks: StateFlow<Map<String, Task>> = _tasks
     val groups: StateFlow<Map<String, Group>> = _groups
+    val events: StateFlow<Map<String, Event>> = _events
 
     /** Emits after every local change (not after reloads). */
     private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
@@ -58,9 +64,10 @@ class Store(val root: File) {
 
     private val taskDir get() = File(root, "tasks")
     private val groupDir get() = File(root, "groups")
+    private val eventDir get() = File(root, "events")
 
     init {
-        listOf("tasks", "groups", "attachments").forEach { File(root, it).mkdirs() }
+        listOf("tasks", "groups", "events", "attachments").forEach { File(root, it).mkdirs() }
         val attrs = File(root, ".gitattributes")
         if (!attrs.exists()) attrs.writeText("*.json text eol=lf\nattachments/** binary\n")
         reload()
@@ -75,6 +82,7 @@ class Store(val root: File) {
     fun reload() {
         _tasks.value = readDir(taskDir) { PactJson.decodeFromString(Task.serializer(), it) }.associateBy { it.id }
         _groups.value = readDir(groupDir) { PactJson.decodeFromString(Group.serializer(), it) }.associateBy { it.id }
+        _events.value = readDir(eventDir) { PactJson.decodeFromString(Event.serializer(), it) }.associateBy { it.id }
     }
 
     private fun <T> readDir(dir: File, parse: (String) -> T): List<T> =
@@ -144,8 +152,11 @@ class Store(val root: File) {
         val t = task(id) ?: return
         val rec = t.recurrence
         val due = t.date
-        if (done && rec != null && due != null) {
-            val next = Recur.advance(rec, due, LocalDate.now())
+        // A series past its "until" date closes like a normal task.
+        val next = if (done && rec != null && due != null) {
+            Recur.advance(rec, due, LocalDate.now()).takeIf { n -> rec.untilDate?.let { !n.isAfter(it) } ?: true }
+        } else null
+        if (next != null) {
             descendants(id).mapNotNull { task(it) }.forEach { saveTask(it.copy(completed = false, completedAt = null)) }
             saveTask(t.withDate(next).copy(completed = false, completedAt = null))
             return
@@ -202,6 +213,7 @@ class Store(val root: File) {
         val cutoff = System.currentTimeMillis() - 30L * 24 * 3600 * 1000
         _tasks.value.values.filter { it.deleted && it.updated < cutoff }.forEach { File(taskDir, "${it.id}.json").delete() }
         _groups.value.values.filter { it.deleted && it.updated < cutoff }.forEach { File(groupDir, "${it.id}.json").delete() }
+        _events.value.values.filter { it.deleted && it.updated < cutoff }.forEach { File(eventDir, "${it.id}.json").delete() }
         reload()
     }
 
@@ -209,10 +221,7 @@ class Store(val root: File) {
     fun quickAdd(text: String, cfg: NlpConfig, defaults: QuickAddDefaults, now: LocalDateTime = LocalDateTime.now()): Task? {
         val p = Nlp.parse(text, now, cfg)
         if (p.title.isEmpty()) return null
-        var groupId = defaults.groupId
-        p.group?.let { name ->
-            groupId = (findGroupByName(name) ?: Group(name = name, color = GROUP_COLORS[_groups.value.size % GROUP_COLORS.size]).also { saveGroup(it) }).id
-        }
+        val groupId = p.group?.let { groupIdForName(it) } ?: defaults.groupId
         val time = p.time
         val t = Task(
             title = p.title,
@@ -223,8 +232,93 @@ class Store(val root: File) {
             labels = p.labels,
             urgent = p.urgent,
             reminders = if (p.reminders.isEmpty() && time != null) defaults.reminders else p.reminders,
-        ).withDate(p.date ?: defaults.date, time)
+        ).withDate(if (p.dateExplicit || p.recurrence != null) p.date else defaults.date ?: p.date, time)
         saveTask(t)
         return t
     }
+
+    /** The id of the group named [name], creating it if needed. */
+    fun groupIdForName(name: String): String =
+        (findGroupByName(name) ?: Group(name = name, color = GROUP_COLORS[_groups.value.size % GROUP_COLORS.size]).also { saveGroup(it) }).id
+
+    // ---- Events (mirrors core/src/store.rs) ------------------------------------------------
+
+    fun event(id: String?): Event? = id?.let { _events.value[it] }?.takeIf { !it.deleted }
+    fun liveEvents(): List<Event> = _events.value.values.filter { !it.deleted }
+
+    @Synchronized
+    fun saveEvent(e: Event) {
+        val stamped = e.copy(updated = System.currentTimeMillis())
+        writeAtomic(File(eventDir, "${e.id}.json"), PactJson.encodeToString(Event.serializer(), stamped))
+        _events.value = _events.value + (e.id to stamped)
+        _changes.tryEmit(Unit)
+    }
+
+    fun deleteEvent(id: String) {
+        _events.value[id]?.let { saveEvent(it.copy(deleted = true)) }
+    }
+
+    /** Cancels one occurrence of a recurring event. */
+    fun skipOccurrence(id: String, date: LocalDate) {
+        val e = event(id) ?: return
+        if (date.toString() !in e.exdates) saveEvent(e.copy(exdates = e.exdates + date.toString()))
+    }
+
+    /** Splits one occurrence off a recurring event so it can be edited on its own. */
+    fun detachOccurrence(id: String, date: LocalDate): Event? {
+        val series = event(id) ?: return null
+        val occ = series.occurrences(date, date).firstOrNull { it.date == date } ?: return null
+        val one = series.copy(id = UUID.randomUUID().toString(), uid = null, recurrence = null, exdates = emptyList(), created = System.currentTimeMillis())
+            .withSpan(occ.start, occ.end, occ.allDay)
+        skipOccurrence(id, date)
+        saveEvent(one)
+        return one
+    }
+
+    /** All event occurrences touching [from]..[to], all-day first, then by start. */
+    fun agenda(from: LocalDate, to: LocalDate, events: Collection<Event> = _events.value.values): List<Occurrence> =
+        events.filter { !it.deleted }.flatMap { it.occurrences(from, to) }.sortedWith(OccurrenceOrder)
+
+    /** Creates an event from quick-add text; [date] applies when the text names no day. */
+    fun quickAddEvent(text: String, cfg: NlpConfig, groupId: String? = null, date: LocalDate? = null, now: LocalDateTime = LocalDateTime.now()): Event? {
+        var p = Nlp.parseEvent(text, now, cfg)
+        if (p.title.isEmpty()) return null
+        if (date != null && !p.dateExplicit && p.recurrence == null) {
+            val shift = java.time.temporal.ChronoUnit.DAYS.between(p.date, date)
+            p = p.copy(date = date, endDate = p.endDate.plusDays(shift))
+        }
+        val st = p.startTime
+        val et = p.endTime
+        var e = Event.create(p.title, p.date, st)
+        e = if (st != null && et != null) e.withSpan(p.date.atTime(st), p.endDate.atTime(et), false) else e.copy(endDate = p.endDate.toString())
+        e = e.copy(
+            recurrence = p.recurrence,
+            reminders = p.reminders,
+            urgent = p.urgent,
+            groupId = p.group?.let { groupIdForName(it) } ?: groupId,
+        )
+        saveEvent(e)
+        return e
+    }
+
+    /** Imports an iCalendar file; known UIDs (incl. our own `<id>@pact`) update in place. Returns (added, updated). */
+    fun importIcs(text: String): Pair<Int, Int> {
+        val events = Ics.import(text) { cat -> groupIdForName(cat) }
+        var added = 0
+        var updated = 0
+        for (e in events) {
+            val uid = e.uid
+            val known = uid?.let { u -> u.removeSuffix("@pact").takeIf { u.endsWith("@pact") }?.let { _events.value[it] } ?: _events.value.values.firstOrNull { it.uid == u } }
+            if (known != null) {
+                saveEvent(e.copy(id = known.id, created = known.created, uid = known.uid))
+                updated++
+            } else {
+                saveEvent(e)
+                added++
+            }
+        }
+        return added to updated
+    }
+
+    fun exportIcs(): String = Ics.export(liveEvents(), liveGroups())
 }

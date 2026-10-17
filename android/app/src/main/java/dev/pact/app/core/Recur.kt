@@ -84,8 +84,8 @@ object Recur {
         val unit = when (r.freq) {
             Freq.DAILY -> "day"; Freq.WEEKLY -> "week"; Freq.MONTHLY -> "month"; Freq.YEARLY -> "year"
         }
-        if (r.freq == Freq.DAILY && r.workdays) return "every workday"
-        if (r.freq == Freq.WEEKLY && r.weekdays == listOf(6, 7) && n == 1) return "every weekend"
+        if (r.freq == Freq.DAILY && r.workdays) return withEnd("every workday", r)
+        if (r.freq == Freq.WEEKLY && r.weekdays == listOf(6, 7) && n == 1) return withEnd("every weekend", r)
         var s = when (n) {
             1 -> "every $unit"
             2 -> "every other $unit"
@@ -101,6 +101,15 @@ object Recur {
             r.freq == Freq.YEARLY && r.month != null && r.monthDay != null ->
                 s = "$s on ${MONTH_NAMES[(r.month - 1).coerceIn(0, 11)]} ${r.monthDay}"
         }
-        return s
+        return withEnd(s, r)
+    }
+
+    private fun withEnd(s: String, r: Recurrence): String {
+        val u = r.untilDate
+        return when {
+            u != null -> "$s until ${u.dayOfMonth} ${MONTH_NAMES[u.monthValue - 1]} ${u.year}"
+            r.count != null -> "$s, ${r.count} times"
+            else -> s
+        }
     }
 }
