@@ -233,6 +233,7 @@ class Store(val root: File) {
             urgent = p.urgent,
             reminders = if (p.reminders.isEmpty() && time != null) defaults.reminders else p.reminders,
         ).withDate(if (p.dateExplicit || p.recurrence != null) p.date else defaults.date ?: p.date, time)
+            .withDeadline(p.deadline, p.deadlineTime)
         saveTask(t)
         return t
     }

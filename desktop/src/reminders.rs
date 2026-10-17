@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use chrono::{Duration as CDuration, NaiveDateTime, NaiveTime};
+use pact_core::deadline::{self, DeadlineConfig};
 use pact_core::model::Task;
 use pact_core::settings::format_offset;
 use pact_core::store::Store;
@@ -33,9 +34,28 @@ impl Reminders {
     }
 
     /// Events due now. All-day tasks use `all_day_time` as their reminder anchor.
-    pub fn check(&mut self, store: &Store, now: NaiveDateTime, all_day_time: NaiveTime) -> Vec<Fire> {
+    /// `deadlines` is None when escalating deadline reminders are off.
+    pub fn check(&mut self, store: &Store, now: NaiveDateTime, all_day_time: NaiveTime, deadlines: Option<&DeadlineConfig>) -> Vec<Fire> {
         let mut out = vec![];
         let window_start = now - CDuration::minutes(GRACE_MINUTES);
+        if let Some(cfg) = deadlines {
+            for t in store.live_tasks().filter(|t| !t.completed) {
+                let Some(d) = t.deadline() else { continue };
+                let due = deadline::moment(d, t.deadline_clock(), cfg);
+                // Only the latest missed alert fires, so waking the laptop doesn't replay a backlog.
+                let Some(at) = deadline::alerts(due, cfg).into_iter().filter(|a| *a <= now && *a > window_start).last() else { continue };
+                if self.fired.insert(format!("d|{}|{}", t.id, at)) {
+                    let when = format!("{}{}", d.format("%a %-d %b"), t.deadline_clock().map(|c| format!(" {}", crate::list::fmt_time(c))).unwrap_or_default());
+                    out.push(Fire {
+                        task_id: t.id.clone(),
+                        title: format!("⚑ {}", t.title),
+                        body: format!("{} · {when}", deadline::message(due, now)),
+                        alarm: t.urgent && at == due,
+                        is_event: false,
+                    });
+                }
+            }
+        }
         for t in store.live_tasks().filter(|t| !t.completed) {
             let Some(date) = t.date() else { continue };
             let due = date.and_time(t.time().unwrap_or(all_day_time));

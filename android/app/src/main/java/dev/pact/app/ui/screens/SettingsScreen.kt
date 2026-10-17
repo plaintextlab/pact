@@ -185,6 +185,17 @@ fun SettingsScreen(vm: AppViewModel) {
                     }) { Text("Allow exact alarms") }
                 }
 
+                Text("Deadlines", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+                SwitchLine("Escalating deadline reminders", s.deadlineReminders) { v -> vm.updateSettings { it.copy(deadlineReminders = v) } }
+                Text(
+                    "Weekly from 4 weeks before, daily in the final week, more often on the last day, then daily for 3 days if missed. " +
+                        "Only between the morning and night hours set above.",
+                    style = MaterialTheme.typography.bodySmall, color = muted,
+                )
+                Segmented("On the last day, remind every", listOf(1 to "1 hour", 2 to "2 hours", 3 to "3 hours"), s.deadlineFinalHours) { h ->
+                    vm.updateSettings { it.copy(deadlineFinalHours = h) }
+                }
+
                 Header("Calendar")
                 SwitchLine("Show tasks in the calendar", s.calendarShowTasks) { v -> vm.updateSettings { it.copy(calendarShowTasks = v) } }
                 SwitchLine("Show phone calendars (Google, Exchange…)", s.showPhoneCalendars) { v ->

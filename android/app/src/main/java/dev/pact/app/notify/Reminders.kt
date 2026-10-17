@@ -8,7 +8,10 @@ import android.content.Intent
 import android.os.Build
 import dev.pact.app.MainActivity
 import dev.pact.app.PactApp
+import dev.pact.app.core.Deadline
+import dev.pact.app.core.DeadlineConfig
 import dev.pact.app.core.Event
+import dev.pact.app.data.deadlineConfig
 import dev.pact.app.core.Occurrence
 import dev.pact.app.core.Task
 import java.time.LocalDateTime
@@ -16,7 +19,15 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /** A reminder for a task or for one occurrence of an event. */
-data class ReminderEvent(val at: LocalDateTime, val offset: Long, val urgent: Boolean, val task: Task? = null, val occurrence: Occurrence? = null)
+data class ReminderEvent(
+    val at: LocalDateTime,
+    val offset: Long,
+    val urgent: Boolean,
+    val task: Task? = null,
+    val occurrence: Occurrence? = null,
+    /** Set for escalating deadline reminders: the deadline itself. */
+    val deadline: LocalDateTime? = null,
+)
 
 /**
  * Keeps a single exact alarm armed for the next reminder. When it fires, everything
@@ -30,7 +41,13 @@ object ReminderScheduler {
     /** How far ahead event occurrences are expanded; a fallback wake-up re-checks after that. */
     private const val EVENT_HORIZON_DAYS = 35L
 
-    fun events(tasks: Collection<Task>, evs: Collection<Event>, allDayAnchor: LocalTime, now: LocalDateTime = LocalDateTime.now()): List<ReminderEvent> {
+    fun events(
+        tasks: Collection<Task>,
+        evs: Collection<Event>,
+        allDayAnchor: LocalTime,
+        now: LocalDateTime = LocalDateTime.now(),
+        deadlines: DeadlineConfig? = null,
+    ): List<ReminderEvent> {
         val forTasks = tasks
             .filter { !it.deleted && !it.completed && it.date != null }
             .flatMap { t ->
@@ -48,10 +65,18 @@ object ReminderScheduler {
                     offsets.map { ReminderEvent(start.minusMinutes(it), it, e.urgent, occurrence = o) }
                 }
             }
-        return (forTasks + forEvents).sortedBy { it.at }
+        val forDeadlines = if (deadlines == null) emptyList() else tasks
+            .filter { !it.deleted && !it.completed && it.deadline != null }
+            .flatMap { t ->
+                val due = Deadline.moment(t.deadline!!, t.deadlineClock, deadlines)
+                Deadline.alerts(due, deadlines).map { ReminderEvent(it, 0, t.urgent && it == due, task = t, deadline = due) }
+            }
+        return (forTasks + forEvents + forDeadlines).sortedBy { it.at }
     }
 
     private fun anchor(app: PactApp) = LocalTime.of(app.settings.value.nlp.morningHour.coerceIn(0, 23), 0)
+
+    private fun deadlineCfg(app: PactApp) = app.settings.value.let { if (it.deadlineReminders) it.deadlineConfig() else null }
 
     private fun millis(dt: LocalDateTime) = dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
@@ -68,7 +93,7 @@ object ReminderScheduler {
     fun schedule(context: Context) {
         val app = context.applicationContext as PactApp
         val now = LocalDateTime.now()
-        val next = events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now).firstOrNull { it.at.isAfter(now) }
+        val next = events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now, deadlineCfg(app)).firstOrNull { it.at.isAfter(now) }
         val am = context.getSystemService(AlarmManager::class.java)
         val pi = pending(context)
         if (next == null) {
@@ -98,10 +123,13 @@ object ReminderScheduler {
             if (ms == 0L) floor else LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(ms), ZoneId.systemDefault())
         }.let { if (it.isBefore(floor)) floor else it }
         if (app.settings.value.notifications) {
-            for (e in events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now).filter { it.at.isAfter(last) && !it.at.isAfter(now) }) {
+            for (e in events(app.store.liveTasks(), app.store.liveEvents(), anchor(app), now, deadlineCfg(app)).filter { it.at.isAfter(last) && !it.at.isAfter(now) }) {
                 val t = e.task
                 val o = e.occurrence
+                val dl = e.deadline
                 when {
+                    t != null && dl != null && e.urgent -> Notifier.alarm(context, t, 0)
+                    t != null && dl != null -> Notifier.deadline(context, t, dl, now)
                     t != null && e.urgent -> Notifier.alarm(context, t, e.offset)
                     t != null -> Notifier.reminder(context, t, e.offset)
                     o != null && e.urgent -> Notifier.eventAlarm(context, o, e.offset)

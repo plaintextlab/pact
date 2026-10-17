@@ -36,6 +36,9 @@ fn main() -> anyhow::Result<()> {
     t.pinned = true;
     t.notes = "Tag the release, build installers and publish.".into();
     s.save_task(t)?;
+    for text in ["Submit thesis draft deadline in 5 days #Study p1", "Tax return {in 3 weeks}", "Renew car insurance deadline tomorrow 5pm #Personal"] {
+        add(&mut s, text, None)?;
+    }
     for text in [
         "Team standup every weekday 9:30-9:45am #Work",
         "Lunch with Sam tomorrow 1-2pm",

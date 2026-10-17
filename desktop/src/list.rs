@@ -39,6 +39,22 @@ pub fn friendly_date(d: NaiveDate, today: NaiveDate) -> String {
     }
 }
 
+/// "today 17:00", "tomorrow", "in 5 days", "20 Nov", "2 days overdue".
+pub fn friendly_deadline(t: &Task, today: NaiveDate) -> String {
+    let Some(d) = t.deadline() else { return String::new() };
+    let days = (d - today).num_days();
+    let time = t.deadline_clock().map(|c| format!(" {}", fmt_time(c))).unwrap_or_default();
+    match days {
+        n if n < -1 => format!("{} days overdue", -n),
+        -1 => "overdue since yesterday".into(),
+        0 => format!("today{time}"),
+        1 => format!("tomorrow{time}"),
+        n if n < 14 => format!("in {n} days"),
+        _ if d.year() == today.year() => d.format("%-d %b").to_string(),
+        _ => d.format("%-d %b %Y").to_string(),
+    }
+}
+
 pub fn friendly_due(t: &Task, today: NaiveDate) -> String {
     match (t.date(), t.time()) {
         (Some(d), Some(tm)) => format!("{} {}", friendly_date(d, today), fmt_time(tm)),
@@ -233,8 +249,15 @@ impl PactApp {
                     section(ui, &self.colors, "Today", None);
                 }
                 let today_tasks = self.dated(|t| t.date() == Some(t0));
-                let empty = if overdue.is_empty() { "Nothing due today. Enjoy! 🎉" } else { "" };
+                // Deadlines in the coming week that aren't already listed above.
+                let mut deadlines = self.dated(|t| !t.completed && t.deadline().is_some_and(|d| d <= t0 + Duration::days(7)) && t.date().is_none_or(|d| d > t0));
+                deadlines.sort_by_key(|t| t.deadline());
+                let empty = if overdue.is_empty() && deadlines.is_empty() { "Nothing due today. Enjoy! 🎉" } else { "" };
                 self.rows(ui, &today_tasks, flat, actions, empty);
+                if !deadlines.is_empty() {
+                    section(ui, &self.colors, "Deadlines this week", Some(self.colors.red));
+                    self.rows(ui, &deadlines, flat, actions, "");
+                }
             }
             View::Upcoming => {
                 let overdue = self.dated(|t| !t.completed && t.date().is_some_and(|d| d < t0));
@@ -375,6 +398,11 @@ impl PactApp {
         }
         if let Some(r) = &t.recurrence {
             ui.label(small(format!("🔁 {}", recur::describe(r)), c.muted));
+        }
+        if let Some(d) = t.deadline() {
+            let left = (d - t0).num_days();
+            let col = if t.completed { c.muted } else if left <= 1 { c.red } else if left <= 7 { c.orange } else { c.muted };
+            ui.label(small(format!("⚑ deadline {}", friendly_deadline(t, t0)), col));
         }
         if t.urgent {
             ui.label(small("⏰ alarm".into(), c.red));

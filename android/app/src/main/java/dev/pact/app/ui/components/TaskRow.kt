@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Repeat
@@ -141,6 +142,16 @@ fun TaskRow(
                         Meta(Icons.Filled.Event, Format.due(t), tint)
                     }
                     t.recurrence?.let { Meta(Icons.Filled.Repeat, Recur.describe(it), muted) }
+                    t.deadline?.let { d ->
+                        val left = ChronoUnit.DAYS.between(today, d)
+                        val tint = when {
+                            t.completed -> muted
+                            left <= 1 -> color(p.red)
+                            left <= 7 -> color(p.orange)
+                            else -> muted
+                        }
+                        Meta(Icons.Filled.HourglassBottom, Format.deadline(t), tint)
+                    }
                     if (t.urgent) Meta(Icons.Filled.Alarm, "alarm", color(p.red))
                     if (t.reminders.isNotEmpty()) Meta(Icons.Filled.Notifications, formatOffset(t.reminders.min()), muted)
                     if (t.pinned) Meta(Icons.Filled.PushPin, "", MaterialTheme.colorScheme.primary)

@@ -45,6 +45,17 @@ pub struct Settings {
     /// Group used as the calendar for new events.
     pub default_calendar: Option<String>,
     pub calendar_show_tasks: bool,
+    /// Escalating reminders for task deadlines.
+    pub deadline_reminders: bool,
+    /// Hours between deadline reminders on the last day.
+    pub deadline_final_hours: u32,
+}
+
+impl Settings {
+    /// Deadline reminders run during the quick-add "morning".."night" hours.
+    pub fn deadline_config(&self) -> crate::deadline::DeadlineConfig {
+        crate::deadline::DeadlineConfig { day_start: self.nlp.morning_hour, day_end: self.nlp.night_hour, final_hours: self.deadline_final_hours }
+    }
 }
 
 impl Default for Settings {
@@ -73,6 +84,8 @@ impl Default for Settings {
             event_reminders: vec![10],
             default_calendar: None,
             calendar_show_tasks: true,
+            deadline_reminders: true,
+            deadline_final_hours: 1,
         }
     }
 }

@@ -408,6 +408,7 @@ impl Store {
         }
         t.set_date(if p.date_explicit || p.recurrence.is_some() { p.date } else { defaults.date.or(p.date) });
         t.set_time(p.time);
+        t.set_deadline(p.deadline, p.deadline_time);
         t.recurrence = p.recurrence;
         t.priority = p.priority.unwrap_or(4);
         t.labels = p.labels;

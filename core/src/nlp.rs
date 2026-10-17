@@ -60,6 +60,9 @@ pub struct Parsed {
     pub urgent: bool,
     /// The text named a day (not just a time or a repeat rule).
     pub date_explicit: bool,
+    /// From `deadline <when>` or `{<when>}`.
+    pub deadline: Option<NaiveDate>,
+    pub deadline_time: Option<NaiveTime>,
 }
 
 const WD: &str = "monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues|tue|wed|thurs|thur|thu|fri|sat|sun";
@@ -79,6 +82,8 @@ macro_rules! rx {
 }
 
 rx! {
+    DL_BRACES = r"\{([^}]*)\}";
+    DL_WORD = r"\bdeadline\s*:?\s+([^#@{!]+)";
     GROUP = r"(?:^|\s)#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)";
     LABEL = r"(?:^|\s)@([\p{L}_][\p{L}\p{N}_\-]*)";
     PRIORITY = r"(?:^|\s)(?:p|!!)([1-4])\b";
@@ -301,10 +306,28 @@ fn year_of(c: &Captures, i: usize) -> Option<Option<i32>> {
     }
 }
 
+/// A deadline phrase like "dec 15 5pm". It must start with the date, so
+/// "the deadline people tomorrow" is not a deadline.
+fn deadline_of(s: &str, now: NaiveDateTime, cfg: &NlpConfig) -> Option<Parsed> {
+    let p = parse(s, now, cfg);
+    p.date.filter(|_| p.date_explicit || p.time.is_some())?;
+    let lead = s.trim_start().to_lowercase();
+    if !p.title.is_empty() && lead.starts_with(&p.title.to_lowercase()) {
+        return None;
+    }
+    Some(p)
+}
+
 pub fn parse(input: &str, now: NaiveDateTime, cfg: &NlpConfig) -> Parsed {
     let today = now.date();
     let mut t = Text(input.to_string());
+    // The deadline comes out first so its date isn't taken as the due date.
+    let deadline = t.take(&DL_BRACES, |c| deadline_of(&c[1], now, cfg)).or_else(|| t.take(&DL_WORD, |c| deadline_of(&c[1], now, cfg)));
     let mut p = Parsed { group: t.take(&GROUP, |c| Some(c[1].to_string())), ..Default::default() };
+    if let Some(dl) = &deadline {
+        p.deadline = dl.date;
+        p.deadline_time = dl.time;
+    }
 
     while let Some(l) = t.take(&LABEL, |c| Some(c[1].to_string())) {
         p.labels.push(l);
@@ -456,6 +479,16 @@ pub fn parse(input: &str, now: NaiveDateTime, cfg: &NlpConfig) -> Parsed {
     p.date = date;
     p.time = time;
     p.title = clean_title(&t.0);
+    // Words and tags caught inside "deadline …" still belong to the task.
+    if let Some(dl) = deadline {
+        if !dl.title.is_empty() {
+            p.title = clean_title(&format!("{} {}", p.title, dl.title));
+        }
+        p.priority = p.priority.or(dl.priority);
+        p.labels.extend(dl.labels);
+        p.reminders.extend(dl.reminders.into_iter().filter(|m| !p.reminders.contains(m)).collect::<Vec<_>>());
+        p.urgent |= dl.urgent;
+    }
     p
 }
 
@@ -763,6 +796,13 @@ mod tests {
             }
             if case.get("urgent").is_some() {
                 check("urgent", Value::from(p.urgent));
+            }
+            if case.get("deadline").is_some() {
+                let d = p.deadline.map(|d| match p.deadline_time {
+                    Some(t) => format!("{d} {}", t.format("%H:%M")),
+                    None => d.to_string(),
+                });
+                check("deadline", d.map(Value::from).unwrap_or(Value::Null));
             }
         }
         assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));

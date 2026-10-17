@@ -143,6 +143,16 @@ impl PactApp {
                     ui.label("Snooze");
                     ui.add(egui::DragValue::new(&mut s.snooze_minutes).range(1..=120).suffix(" min"));
                     ui.end_row();
+                    ui.label("Escalating deadline reminders");
+                    ui.checkbox(&mut s.deadline_reminders, "weekly → daily → last day");
+                    ui.end_row();
+                    ui.label("On the last day, every");
+                    ui.horizontal(|ui| {
+                        for h in [1, 2, 3] {
+                            ui.selectable_value(&mut s.deadline_final_hours, h, format!("{h} h"));
+                        }
+                    });
+                    ui.end_row();
                 });
 
                 style::section_title(ui, &c, "SYNC (GIT)");

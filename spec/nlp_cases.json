@@ -67,6 +67,11 @@
     { "input": "launch on oct 30 at 18:00 #Work priority high", "title": "launch", "date": "2026-10-30", "time": "18:00", "group": "Work", "priority": 1 },
     { "input": "pay tax by 31st", "title": "pay tax", "date": "2026-10-31" },
     { "input": "write docs in 10 weekdays", "title": "write docs", "date": "2026-10-30" },
+    { "input": "Submit thesis deadline dec 15 #Study", "title": "Submit thesis", "group": "Study", "deadline": "2026-12-15" },
+    { "input": "Tax return {apr 30}", "title": "Tax return", "deadline": "2027-04-30" },
+    { "input": "Draft report tomorrow deadline next friday 5pm", "title": "Draft report", "date": "2026-10-17", "deadline": "2026-10-23 17:00" },
+    { "input": "Grant application deadline: in 3 weeks p1", "title": "Grant application", "priority": 1, "deadline": "2026-11-06" },
+    { "input": "Meet the deadline people tomorrow", "title": "Meet the deadline people", "date": "2026-10-17", "deadline": null },
     { "input": "night shift every night", "title": "night shift", "date": "2026-10-16", "time": "21:00", "rec": { "freq": "daily", "interval": 1 } }
   ]
 }

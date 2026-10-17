@@ -157,7 +157,7 @@ class PactWidget : GlanceAppWidget() {
                             ),
                         ) {
                             Text(t.title, maxLines = 1, style = TextStyle(color = if (t.completed) muted else fg, fontSize = 14.sp))
-                            val due = Format.due(t)
+                            val due = listOf(Format.due(t), t.deadline?.let { "⚑ " + Format.deadline(t) }.orEmpty()).filter { it.isNotEmpty() }.joinToString(" · ")
                             if (due.isNotEmpty()) {
                                 val dueColor = if (t.isOverdue()) c(p.red) else if (t.date == LocalDate.now()) c(p.green) else c(p.muted)
                                 Text(due + (if (t.urgent) "  ⏰" else ""), style = TextStyle(color = ColorProvider(dueColor), fontSize = 11.sp))

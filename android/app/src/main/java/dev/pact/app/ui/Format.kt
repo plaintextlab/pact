@@ -33,6 +33,21 @@ object Format {
         }
     }
 
+    /** "Today 17:00", "Tomorrow", "in 5 days", "20 Nov", "2 days overdue". */
+    fun deadline(t: Task, today: LocalDate = LocalDate.now()): String {
+        val d = t.deadline ?: return ""
+        val days = ChronoUnit.DAYS.between(today, d)
+        val time = t.deadlineClock?.let { " " + time(it) } ?: ""
+        return when {
+            days < -1 -> "${-days} days overdue"
+            days == -1L -> "overdue since yesterday"
+            days == 0L -> "today$time"
+            days == 1L -> "tomorrow$time"
+            days < 14 -> "in $days days"
+            else -> d.format(if (d.year == today.year) DateTimeFormatter.ofPattern("d MMM") else long)
+        }
+    }
+
     fun due(t: Task): String {
         val d = t.date ?: return ""
         return listOfNotNull(date(d), t.time?.let { time(it) }).joinToString(" ")

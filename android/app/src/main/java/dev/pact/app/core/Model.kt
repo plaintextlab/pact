@@ -74,6 +74,9 @@ data class Task(
     @SerialName("parent_id") val parentId: String? = null,
     @SerialName("due_date") val dueDate: String? = null,
     @SerialName("due_time") val dueTime: String? = null,
+    /** Hard deadline, separate from the planned due date; reminders escalate as it nears. */
+    @SerialName("deadline_date") val deadlineDate: String? = null,
+    @SerialName("deadline_time") val deadlineTime: String? = null,
     val recurrence: Recurrence? = null,
     val priority: Int = 4,
     val labels: List<String> = emptyList(),
@@ -93,6 +96,12 @@ data class Task(
 
     /** Due moment; all-day tasks are due at the end of their day. */
     val dueAt: LocalDateTime? get() = date?.let { d -> d.atTime(time ?: LocalTime.of(23, 59, 59)) }
+
+    val deadline: LocalDate? get() = deadlineDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    val deadlineClock: LocalTime? get() = deadlineTime?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+
+    fun withDeadline(d: LocalDate?, t: LocalTime? = null): Task =
+        copy(deadlineDate = d?.toString(), deadlineTime = if (d == null) null else t?.format(TIME_FMT))
 
     fun isOverdue(now: LocalDateTime = LocalDateTime.now()) = !completed && (dueAt?.isBefore(now) ?: false)
 

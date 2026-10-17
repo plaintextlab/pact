@@ -18,6 +18,7 @@ It runs on Android and on Linux, Windows and macOS.
 - **Views**: Inbox, Today, Upcoming, Calendar (repeating tasks are projected onto future days), search
 - **Attachments**: images, files, text notes and voice recordings on any task or subtask
 - **Reminders** a configurable number of minutes before a task is due
+- **Deadlines**, separate from the due date (when you plan to do it). Reminders get more frequent as the deadline nears: weekly from 4 weeks out, daily in the last week, every 1–3 hours on the last day, then daily for 3 days if missed. They only fire during waking hours, and each one replaces the previous one, so you see a single countdown. Today shows "Deadlines this week", and deadlines appear in the calendar.
 - **Urgent tasks** ring like an alarm clock: on Android a full-screen alarm, on desktop a ringing dialog with snooze
 - **Pinned notifications** keep a task in the notification shade. On Android, if you swipe one away, it is posted again.
 - **Themes**: Gruvbox (default), Everforest, Nord, Catppuccin, Tokyo Night, Dracula, Solarized, Rosé Pine, Kanagawa. Each has a light and a dark variant.
@@ -42,6 +43,7 @@ It runs on Android and on Linux, Windows and macOS.
 | `every day`, `every weekday`, `every mon, wed and fri`, `every other week`, `every 3 months`, `every 15th`, `every last day of the month`, `every june 10`, `every morning` | repeating tasks |
 | `#Work`, `@errands`, `p1`, `priority high` | group (created if new), label, priority |
 | `remind me 15 min before`, `!30m` | reminders |
+| `deadline dec 15`, `deadline: next friday 5pm`, `{in 3 weeks}` | deadline (escalating reminders) |
 | `!!`, `!urgent`, `alarm 10 min before` | urgent: rings an alarm |
 
 Events understand the same phrases plus `3-5pm`, `11am to 1pm`, `from 9 to 5`, `9:30-10:15`, `for 45 min`, `for 2 hours` and `all day`.

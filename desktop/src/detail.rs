@@ -50,6 +50,7 @@ impl PactApp {
                     ui.add(egui::TextEdit::multiline(&mut t.notes).hint_text("Description").desired_rows(3).desired_width(f32::INFINITY));
 
                     self.due_section(ui, &mut t);
+                    self.deadline_section(ui, &mut t);
                     self.organize_section(ui, &mut t);
                     self.reminder_section(ui, &mut t);
                     self.subtask_section(ui, &t, actions);
@@ -67,6 +68,52 @@ impl PactApp {
 
         if t != orig {
             actions.push(Action::Save(t));
+        }
+    }
+
+    fn deadline_section(&mut self, ui: &mut egui::Ui, t: &mut Task) {
+        let c = self.colors.clone();
+        style::section_title(ui, &c, "DEADLINE");
+        ui.horizontal_wrapped(|ui| {
+            match t.deadline() {
+                Some(mut d) => {
+                    let mut time = t.deadline_clock();
+                    let mut changed = ui.add(egui_extras::DatePickerButton::new(&mut d).id_salt("deadline").calendar_week(false)).changed();
+                    let mut has_time = time.is_some();
+                    if ui.checkbox(&mut has_time, "at").changed() {
+                        time = has_time.then(|| NaiveTime::from_hms_opt(17, 0, 0).unwrap());
+                        changed = true;
+                    }
+                    if let Some(tm) = &mut time {
+                        changed |= crate::events::time_edit(ui, tm);
+                    }
+                    if changed {
+                        t.set_deadline(Some(d), time);
+                    }
+                    ui.label(RichText::new(crate::list::friendly_deadline(t, today())).color(c.muted));
+                    if ui.button("Clear").clicked() {
+                        t.set_deadline(None, None);
+                    }
+                }
+                None => {
+                    for (label, days) in [("In a week", 7), ("In 2 weeks", 14), ("In a month", 30)] {
+                        if style::tonal_button(ui, &c, label).clicked() {
+                            t.set_deadline(Some(today() + chrono::Duration::days(days)), None);
+                        }
+                    }
+                    ui.label(RichText::new("or type “deadline dec 15”").color(c.muted).size(12.0));
+                }
+            }
+        });
+        if t.deadline().is_some() {
+            let s = &self.settings;
+            let every = if s.deadline_final_hours == 1 { "hour".to_string() } else { format!("{} hours", s.deadline_final_hours) };
+            let text = if s.deadline_reminders {
+                format!("Reminders: weekly from 4 weeks before, daily in the last week, every {every} on the last day ({}:00–{}:00), then daily for 3 days if missed.", s.nlp.morning_hour, s.nlp.night_hour)
+            } else {
+                "Deadline reminders are off in Settings.".to_string()
+            };
+            ui.label(RichText::new(text).size(12.0).color(c.muted));
         }
     }
 

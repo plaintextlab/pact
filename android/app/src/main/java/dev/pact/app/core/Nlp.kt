@@ -34,6 +34,9 @@ data class Parsed(
     val urgent: Boolean = false,
     /** The text named a day (not just a time or a repeat rule). */
     val dateExplicit: Boolean = false,
+    /** From `deadline <when>` or `{<when>}`. */
+    val deadline: LocalDate? = null,
+    val deadlineTime: LocalTime? = null,
 )
 
 /** What quick add understood for a calendar event; start/end times null = all-day. */
@@ -62,6 +65,8 @@ object Nlp {
         RegexOption.IGNORE_CASE,
     )
 
+    private val DL_BRACES = re("""\{([^}]*)\}""")
+    private val DL_WORD = re("""\bdeadline\s*:?\s+([^#@{!]+)""")
     private val GROUP = re("""(?:^|\s)#([\p{L}\p{N}_][\p{L}\p{N}_\-/]*)""")
     private val LABEL = re("""(?:^|\s)@([\p{L}_][\p{L}\p{N}_\-]*)""")
     private val PRIORITY = re("""(?:^|\s)(?:p|!!)([1-4])\b""")
@@ -225,9 +230,19 @@ object Nlp {
         return true to (if (y < 100) 2000 + y else y)
     }
 
+    /** A deadline phrase like "dec 15 5pm"; it must start with the date. */
+    private fun deadlineOf(s: String, now: LocalDateTime, cfg: NlpConfig): Parsed? {
+        val p = parse(s, now, cfg)
+        if (p.date == null || !(p.dateExplicit || p.time != null)) return null
+        if (p.title.isNotEmpty() && s.trimStart().lowercase().startsWith(p.title.lowercase())) return null
+        return p
+    }
+
     fun parse(input: String, now: LocalDateTime = LocalDateTime.now(), cfg: NlpConfig = NlpConfig()): Parsed {
         val today = now.toLocalDate()
         val t = Text(input)
+        // The deadline comes out first so its date isn't taken as the due date.
+        val dl = t.take(DL_BRACES) { deadlineOf(it.g(1)!!, now, cfg) } ?: t.take(DL_WORD) { deadlineOf(it.g(1)!!, now, cfg) }
         val group = t.take(GROUP) { it.g(1) }
         val labels = mutableListOf<String>()
         while (true) labels += t.take(LABEL) { it.g(1) } ?: break
@@ -339,17 +354,21 @@ object Nlp {
             if (tm != null) date = if (tm.isAfter(now.toLocalTime())) today else today.plusDays(1)
         }
 
+        // Words and tags caught inside "deadline …" still belong to the task.
+        val title = cleanTitle(t.s).let { base -> if (dl != null && dl.title.isNotEmpty()) cleanTitle("$base ${dl.title}") else base }
         return Parsed(
-            title = cleanTitle(t.s),
+            title = title,
             date = date,
             time = time,
             recurrence = recurrence,
-            priority = priority,
-            labels = labels,
+            priority = priority ?: dl?.priority,
+            labels = labels + dl?.labels.orEmpty(),
             group = group,
-            reminders = reminders,
-            urgent = urgent,
+            reminders = reminders + dl?.reminders.orEmpty().filter { it !in reminders },
+            urgent = urgent || dl?.urgent == true,
             dateExplicit = dateExplicit,
+            deadline = dl?.date,
+            deadlineTime = dl?.time,
         )
     }
 

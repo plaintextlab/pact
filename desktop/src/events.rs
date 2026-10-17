@@ -59,7 +59,7 @@ impl EventEdit {
 }
 
 /// Hour/minute editor honoring the 12/24-hour setting.
-fn time_edit(ui: &mut egui::Ui, t: &mut NaiveTime) -> bool {
+pub fn time_edit(ui: &mut egui::Ui, t: &mut NaiveTime) -> bool {
     let (mut h, mut m) = (t.hour(), t.minute());
     let mut changed = false;
     if clock_24h() {

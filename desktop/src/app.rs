@@ -453,7 +453,8 @@ impl PactApp {
             self.last_reminder_check = Some(Instant::now());
             let now = Local::now().naive_local();
             let anchor = NaiveTime::from_hms_opt(self.settings.nlp.morning_hour.min(23), 0, 0).unwrap();
-            for f in self.reminders.check(&self.store, now, anchor) {
+            let deadlines = self.settings.deadline_reminders.then(|| self.settings.deadline_config());
+            for f in self.reminders.check(&self.store, now, anchor, deadlines.as_ref()) {
                 if f.alarm {
                     let sound = AlarmSound::ring(self.settings.alarm_ring_seconds);
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));

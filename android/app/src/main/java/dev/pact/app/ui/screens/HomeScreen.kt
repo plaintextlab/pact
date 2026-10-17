@@ -268,6 +268,7 @@ private fun TaskList(vm: AppViewModel, tasks: Map<String, Task>, showCompleted: 
     val dated = { f: (Task) -> Boolean -> live.filter { f(it) && visible(it) }.sortedWith(TaskOrder) }
     val topLevel = { f: (Task) -> Boolean -> live.filter { it.parentId == null && f(it) && visible(it) }.sortedWith(TaskOrder) }
     val pinned = live.filter { it.pinned && !it.completed }
+    val errorColor = MaterialTheme.colorScheme.error
 
     LazyColumn(contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 96.dp)) {
         if (pinned.isNotEmpty() && vm.search.isEmpty()) item { PinnedStrip(vm, pinned) }
@@ -300,7 +301,14 @@ private fun TaskList(vm: AppViewModel, tasks: Map<String, Task>, showCompleted: 
                     rows(overdue, false)
                     header("Today")
                 }
-                rows(dated { it.date == today }, false, if (overdue.isEmpty()) "Nothing due today. Enjoy! 🎉" else "")
+                val todays = dated { it.date == today }
+                // Deadlines in the coming week that aren't already listed above.
+                val deadlines = dated { !it.completed && it.deadline?.let { d -> !d.isAfter(today.plusDays(7)) } == true && it.date?.let { d -> d.isAfter(today) } != false && it.date != today }
+                rows(todays, false, if (overdue.isEmpty() && deadlines.isEmpty()) "Nothing due today. Enjoy! 🎉" else "")
+                if (deadlines.isNotEmpty()) {
+                    header("Deadlines this week", errorColor)
+                    rows(deadlines.sortedBy { it.deadline }, false)
+                }
             }
             View.Upcoming -> {
                 val overdue = dated { !it.completed && it.date?.isBefore(today) == true }

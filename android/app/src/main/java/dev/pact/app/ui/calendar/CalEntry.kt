@@ -71,6 +71,17 @@ fun buildEntries(
         )
     }
     if (showTasks) {
+        // Deadlines as their own red markers.
+        for (t in tasks.values) {
+            if (t.deleted || (t.completed && !showCompleted)) continue
+            val d = t.deadline ?: continue
+            if (d.isBefore(from) || d.isAfter(to)) continue
+            val start = d.atTime(t.deadlineClock ?: LocalTime.MIDNIGHT)
+            out += CalEntry(
+                key = "dl:${t.id}", kind = EntryKind.TASK, title = "⚑ ${t.title}", start = start, end = start,
+                allDay = t.deadlineClock == null, color = color(p.red), done = t.completed, task = t,
+            )
+        }
         for (t in tasks.values) {
             if (t.deleted || (t.completed && !showCompleted)) continue
             val d = t.date ?: continue

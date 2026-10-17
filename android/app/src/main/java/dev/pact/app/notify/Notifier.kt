@@ -129,6 +129,30 @@ object Notifier {
     fun eventAlarm(context: Context, o: Occurrence, offset: Long) =
         alarmFor(context, eventKey(o.event.id, o.date), o.event.title, eventText(o, offset), canComplete = false)
 
+    /**
+     * Escalating deadline reminder. Each one replaces the previous for the same task,
+     * so the shade shows one up-to-date countdown instead of a pile.
+     */
+    fun deadline(context: Context, t: Task, deadline: java.time.LocalDateTime, now: java.time.LocalDateTime) {
+        if (!canPost(context)) return
+        val f = dev.pact.app.ui.Format
+        val whenText = deadline.toLocalDate().format(DateTimeFormatter.ofPattern("EEE d MMM")) + (t.deadlineClock?.let { " " + f.time(it) } ?: "")
+        val text = dev.pact.app.core.Deadline.message(deadline, now) + " · " + whenText
+        val close = java.time.Duration.between(now, deadline) <= java.time.Duration.ofHours(24)
+        val n = NotificationCompat.Builder(context, CH_REMINDERS)
+            .setSmallIcon(R.drawable.ic_stat_pact)
+            .setContentTitle("⚑ ${t.title}")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(if (t.notes.isBlank()) text else "$text\n${t.notes}"))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(if (close) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(openTaskIntent(context, t.id))
+            .addAction(0, "Complete", action(context, ActionReceiver.COMPLETE, t.id, 2))
+            .build()
+        NotificationManagerCompat.from(context).notify(id(t.id, 11), n)
+    }
+
     fun reminder(context: Context, t: Task, offset: Long) {
         if (!canPost(context)) return
         val text = if (offset == 0L) "Due now · ${dueText(t)}" else "In ${formatOffset(offset)} · ${dueText(t)}"
@@ -213,12 +237,17 @@ object Notifier {
     }
 
     fun cancelPinned(context: Context, taskId: String) = NotificationManagerCompat.from(context).cancel(id(taskId, 9))
-    fun cancel(context: Context, taskId: String) = NotificationManagerCompat.from(context).cancel(id(taskId))
+    fun cancel(context: Context, taskId: String) {
+        NotificationManagerCompat.from(context).cancel(id(taskId))
+        NotificationManagerCompat.from(context).cancel(id(taskId, 11))
+    }
 
     /** Shows pins for pinned tasks and removes stale ones. */
     fun syncPinned(context: Context, tasks: Collection<Task>) {
         for (t in tasks) {
             if (t.pinned && !t.completed && !t.deleted) pinned(context, t) else cancelPinned(context, t.id)
+            // A finished task's deadline countdown is no longer relevant.
+            if ((t.completed || t.deleted) && t.deadlineDate != null) NotificationManagerCompat.from(context).cancel(id(t.id, 11))
         }
     }
 }

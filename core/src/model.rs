@@ -90,6 +90,11 @@ pub struct Task {
     pub due_date: Option<String>,
     #[serde(default)]
     pub due_time: Option<String>,
+    /// Hard deadline, separate from the planned due date; reminders escalate as it nears.
+    #[serde(default)]
+    pub deadline_date: Option<String>,
+    #[serde(default)]
+    pub deadline_time: Option<String>,
     #[serde(default)]
     pub recurrence: Option<Recurrence>,
     #[serde(default = "default_priority")]
@@ -136,6 +141,8 @@ impl Task {
             parent_id: None,
             due_date: None,
             due_time: None,
+            deadline_date: None,
+            deadline_time: None,
             recurrence: None,
             priority: 4,
             labels: vec![],
@@ -178,6 +185,19 @@ impl Task {
             Some(t) => d.and_time(t),
             None => d.and_hms_opt(23, 59, 59).unwrap(),
         })
+    }
+
+    pub fn deadline(&self) -> Option<NaiveDate> {
+        self.deadline_date.as_deref().and_then(|d| NaiveDate::parse_from_str(d, DATE_FMT).ok())
+    }
+
+    pub fn deadline_clock(&self) -> Option<NaiveTime> {
+        self.deadline_time.as_deref().and_then(|t| NaiveTime::parse_from_str(t, TIME_FMT).ok())
+    }
+
+    pub fn set_deadline(&mut self, d: Option<NaiveDate>, t: Option<NaiveTime>) {
+        self.deadline_date = d.map(|d| d.format(DATE_FMT).to_string());
+        self.deadline_time = d.and(t).map(|t| t.format(TIME_FMT).to_string());
     }
 
     pub fn is_overdue(&self, now: NaiveDateTime) -> bool {

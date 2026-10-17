@@ -37,6 +37,8 @@ tombstone) so the deletion syncs. Tombstones older than 30 days are purged.
 | `parent_id`    | string \| null       | set for subtasks (any depth)                              |
 | `due_date`     | `"YYYY-MM-DD"` \| null | local date                                              |
 | `due_time`     | `"HH:MM"` \| null    | local time; null = all-day                                |
+| `deadline_date`| `"YYYY-MM-DD"` \| null | hard deadline, separate from the planned due date      |
+| `deadline_time`| `"HH:MM"` \| null    | null = end of the waking day                              |
 | `recurrence`   | Recurrence \| null   | see below                                                 |
 | `priority`     | 1..4                 | 1 = highest, 4 = none (Todoist style)                     |
 | `labels`       | string[]             |                                                           |

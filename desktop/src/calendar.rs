@@ -146,6 +146,23 @@ impl PactApp {
             })
             .collect();
         if self.settings.calendar_show_tasks {
+            // Deadlines as their own red markers.
+            for t in self.store.live_tasks().filter(|t| self.settings.show_completed || !t.completed) {
+                let Some(d) = t.deadline().filter(|d| *d >= from && *d <= to) else { continue };
+                let start = d.and_time(t.deadline_clock().unwrap_or(NaiveTime::MIN));
+                out.push(Entry {
+                    kind: EntryKind::Task(t.id.clone()),
+                    title: format!("⚑ {}", t.title),
+                    start,
+                    end: start,
+                    all_day: t.deadline_clock().is_none(),
+                    color: self.colors.red,
+                    location: String::new(),
+                    repeats: false,
+                    projected: false,
+                    done: t.completed,
+                });
+            }
             let mut tasks: Vec<_> = self.store.live_tasks().filter(|t| t.date().is_some() && (self.settings.show_completed || !t.completed)).collect();
             sort_tasks(&mut tasks);
             for t in tasks {

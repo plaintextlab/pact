@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Mic
@@ -147,6 +148,8 @@ fun TaskScreen(vm: AppViewModel, id: String) {
     }
 
     var pickDate by remember { mutableStateOf(false) }
+    var pickDeadline by remember { mutableStateOf(false) }
+    var pickDeadlineTime by remember { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf(false) }
     var reschedule by remember(id) { mutableStateOf("") }
     var subtask by remember(id) { mutableStateOf("") }
@@ -227,6 +230,29 @@ fun TaskScreen(vm: AppViewModel, id: String) {
                     }),
                 )
                 if (reschedule.isNotBlank()) ParsedChips(Nlp.parse(reschedule, cfg = settings.nlp).copy(title = ""))
+
+                Section("Deadline")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(
+                        onClick = { pickDeadline = true },
+                        label = { Text(t.deadline?.let { d -> d.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy")) + " · " + Format.deadline(t) } ?: "Set deadline") },
+                        leadingIcon = { Icon(Icons.Filled.HourglassBottom, null, Modifier.size(18.dp)) },
+                    )
+                    if (t.deadline != null) {
+                        AssistChip(onClick = { pickDeadlineTime = true }, label = { Text(t.deadlineClock?.let { Format.time(it) } ?: "Add time") },
+                            leadingIcon = { Icon(Icons.Filled.Schedule, null, Modifier.size(18.dp)) })
+                        AssistChip(onClick = { update { it.withDeadline(null) } }, label = { Text("Clear") })
+                    }
+                }
+                if (t.deadline != null) {
+                    Text(
+                        if (settings.deadlineReminders) "Reminders: weekly from 4 weeks before, daily in the last week, every " +
+                            (if (settings.deadlineFinalHours == 1) "hour" else "${settings.deadlineFinalHours} hours") +
+                            " on the last day (${settings.nlp.morningHour}:00–${settings.nlp.nightHour}:00), then daily for 3 days if missed."
+                        else "Deadline reminders are off in Settings.",
+                        style = MaterialTheme.typography.bodySmall, color = muted,
+                    )
+                }
 
                 Section("Priority & group")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -340,6 +366,31 @@ fun TaskScreen(vm: AppViewModel, id: String) {
         }
     }
 
+    if (pickDeadline) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = (t.deadline ?: LocalDate.now().plusWeeks(1)).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
+        DatePickerDialog(
+            onDismissRequest = { pickDeadline = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { ms -> update { it.withDeadline(Instant.ofEpochMilli(ms).atZone(ZoneOffset.UTC).toLocalDate(), it.deadlineClock) } }
+                    pickDeadline = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { pickDeadline = false }) { Text("Cancel") } },
+        ) { DatePicker(state) }
+    }
+    if (pickDeadlineTime) {
+        val now = t.deadlineClock ?: LocalTime.of(17, 0)
+        val state = rememberTimePickerState(now.hour, now.minute, is24Hour = Format.use24h)
+        AlertDialog(
+            onDismissRequest = { pickDeadlineTime = false },
+            confirmButton = {
+                TextButton(onClick = { update { it.withDeadline(it.deadline, LocalTime.of(state.hour, state.minute)) }; pickDeadlineTime = false }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { pickDeadlineTime = false }) { Text("Cancel") } },
+            text = { TimePicker(state) },
+        )
+    }
     if (pickDate) {
         val state = rememberDatePickerState(initialSelectedDateMillis = (t.date ?: LocalDate.now()).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli())
         DatePickerDialog(

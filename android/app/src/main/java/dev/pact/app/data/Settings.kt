@@ -45,7 +45,14 @@ data class Settings(
     @SerialName("calendar_show_tasks") val calendarShowTasks: Boolean = true,
     /** Overlay events from the phone's own calendars (read-only). */
     @SerialName("show_phone_calendars") val showPhoneCalendars: Boolean = false,
+    /** Escalating reminders for task deadlines. */
+    @SerialName("deadline_reminders") val deadlineReminders: Boolean = true,
+    /** Hours between deadline reminders on the last day. */
+    @SerialName("deadline_final_hours") val deadlineFinalHours: Int = 1,
 )
+
+/** Deadline reminders run during the quick-add "morning".."night" hours. */
+fun Settings.deadlineConfig() = dev.pact.app.core.DeadlineConfig(nlp.morningHour, nlp.nightHour, deadlineFinalHours)
 
 class SettingsRepo(private val file: File) {
     private val _state = MutableStateFlow(load())

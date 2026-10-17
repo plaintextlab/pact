@@ -52,6 +52,10 @@ class NlpCasesTest {
             if ("labels" in c) check("labels", PactJson.encodeToJsonElement(p.labels))
             if ("reminders" in c) check("reminders", PactJson.encodeToJsonElement(p.reminders))
             if ("urgent" in c) check("urgent", JsonPrimitive(p.urgent))
+            if ("deadline" in c) {
+                val d = p.deadline?.let { d -> p.deadlineTime?.let { "$d ${it.toString().take(5)}" } ?: d.toString() }
+                check("deadline", d?.let { JsonPrimitive(it) } ?: JsonNull)
+            }
         }
         assertTrue("${failures.size} failures:\n" + failures.joinToString("\n"), failures.isEmpty())
     }

@@ -226,7 +226,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsRepo.update(f)
         val after = settingsRepo.value
         app.applyClock(after)
-        if (after.nlp != before.nlp || after.notifications != before.notifications) app.onDataChanged(local = false)
+        if (after.nlp != before.nlp || after.notifications != before.notifications || after.deadlineReminders != before.deadlineReminders ||
+            after.deadlineFinalHours != before.deadlineFinalHours
+        ) app.onDataChanged(local = false)
     }
 
     fun syncNow() {
