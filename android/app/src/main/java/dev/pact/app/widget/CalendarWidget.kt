@@ -83,6 +83,7 @@ class CalendarWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        if (widgetKind(context, id) == WidgetKind.TASKS) return PactWidget().provideGlance(context, id)
         val app = context.applicationContext as PactApp
         val s = app.settings.value
         val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -127,7 +128,7 @@ class CalendarWidget : GlanceAppWidget() {
                 Image(
                     ImageProvider(R.drawable.ic_add), "New event",
                     colorFilter = ColorFilter.tint(ColorProvider(c(p.bg))),
-                    modifier = GlanceModifier.size(30.dp).cornerRadius(15.dp).background(primary).padding(5.dp)
+                    modifier = GlanceModifier.size(30.dp).shapeBackground(primary, R.drawable.widget_circle).padding(5.dp)
                         .clickable(actionStartActivity(Shortcuts.intent(context, Shortcuts.NEW_EVENT).setData(Uri.parse("pact://new_event")))),
                 )
             }
@@ -168,7 +169,7 @@ class CalendarWidget : GlanceAppWidget() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Box(
-                            GlanceModifier.size(22.dp).cornerRadius(11.dp).background(if (d == today) c(p.primary) else Color.Transparent),
+                            GlanceModifier.size(22.dp).let { if (d == today) it.shapeBackground(c(p.primary), R.drawable.widget_circle) else it },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -204,7 +205,7 @@ class CalendarWidget : GlanceAppWidget() {
                     GlanceModifier.fillMaxWidth().padding(vertical = 2.dp).clickable(actionStartActivity(openCalendar(context, day))),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(GlanceModifier.width(4.dp).height(if (compact) 26.dp else 32.dp).cornerRadius(2.dp).background(e.color)) {}
+                    Box(GlanceModifier.width(4.dp).height(if (compact) 26.dp else 32.dp).shapeBackground(e.color, R.drawable.widget_bar)) {}
                     Spacer(GlanceModifier.width(8.dp))
                     Column(GlanceModifier.defaultWeight()) {
                         Text(e.title, maxLines = 1, style = TextStyle(color = ColorProvider(c(p.fg)), fontSize = 13.sp, fontWeight = FontWeight.Medium))

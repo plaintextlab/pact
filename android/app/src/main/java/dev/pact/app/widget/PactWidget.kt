@@ -92,6 +92,7 @@ class PactWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        if (widgetKind(context, id) == WidgetKind.CALENDAR) return CalendarWidget().provideGlance(context, id)
         val app = context.applicationContext as PactApp
         provideContent {
             val prefs = currentState<Preferences>()
@@ -120,7 +121,7 @@ class PactWidget : GlanceAppWidget() {
             Row(GlanceModifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Tapping the title switches the view: Today → Upcoming → Inbox → All → groups.
                 Row(
-                    GlanceModifier.defaultWeight().cornerRadius(14.dp).background(c(p.bg1)).padding(horizontal = 10.dp, vertical = 4.dp)
+                    GlanceModifier.defaultWeight().shapeBackground(c(p.bg1), R.drawable.widget_pill).padding(horizontal = 10.dp, vertical = 4.dp)
                         .clickable(actionRunCallback<CycleFilterAction>()),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -135,7 +136,7 @@ class PactWidget : GlanceAppWidget() {
                 Image(
                     ImageProvider(R.drawable.ic_add), "Add task",
                     colorFilter = ColorFilter.tint(ColorProvider(c(p.bg))),
-                    modifier = GlanceModifier.size(32.dp).cornerRadius(16.dp).background(c(p.primary)).padding(6.dp)
+                    modifier = GlanceModifier.size(32.dp).shapeBackground(c(p.primary), R.drawable.widget_circle).padding(6.dp)
                         .clickable(actionStartActivity(Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_QUICK_ADD, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))),
                 )
             }
